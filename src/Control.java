@@ -14,6 +14,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 
+/** TODO:javadoc */
 public class Control {
 
     private static final float ROUNDF = 100f;
