@@ -1,0 +1,15 @@
+{
+    "java.configuration.checkProjectSettingsExclusions": false,
+    "java.dependency.packagePresentation": "hierarchical",
+    "java.project.referencedLibraries": { 
+        "include": [ 
+            "lib/*.jar", 
+        ], 
+        "exclude": [ 
+            "" 
+        ], 
+        "sources": { 
+            "lib/jme3-core.jar": "sources/jme3-core-sources.jar" 
+        } 
+    }
+}
