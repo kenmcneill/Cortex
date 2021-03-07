@@ -26,6 +26,9 @@ import javax.swing.event.ChangeListener;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 
+/**
+ * ControlGUI
+ */
 public class ControlGUI {
 
     private static final String[] RUNSTATUS = { "Stopped", "Running", "Timed out" };
