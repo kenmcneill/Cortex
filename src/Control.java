@@ -24,18 +24,17 @@ public class Control {
     private DatagramSocket socket_REC;
     private DatagramSocket socket_SND;
 
-    // 192.168.1.112
-    private static InetAddress RECEIVE_ADDRESS;
-    private static int RECEIVE_PORT = 12345;
 
     private static final byte[] LOCAL_HOST = new byte[] { 127, 0, 0, 1 };
     private static final byte[] THIS_HOST_WILDCARD = new byte[] { 0, 0, 0, 0 };
     private static final byte[] DATA_HOST = THIS_HOST_WILDCARD;
-    private static final byte[] FEEDBACK_HOST = LOCAL_HOST;
 
-    private InetAddress sendAddress;
+    private InetAddress listenAddress;
+    private int listenPort = 12345;
 
-    private int SEND_PORT = 54321;
+    byte[] fbSendHost = LOCAL_HOST;
+    private InetAddress fbSendAddress;
+    private int fbSendPort = 54321;
 
     private boolean listening;
     private byte[] buf = new byte[500]; // enough for 8 channels
@@ -117,44 +116,32 @@ public class Control {
 
     static {
 
-        // Handler fh;
+        System.setProperty("java.util.logging.SimpleFormatter.format", "%1$tF %1$tT %4$s %2$s(): %5$s%6$s%n");
+        logger = Logger.getLogger("cortex");
+        logger.setLevel(Level.INFO);
 
-        try {
+        // fileWriter = new FileWriter("logs/session-data-" + new Date() + ".txt");
 
-            // fh = new FileHandler("logs/cortex.txt");
-            // fh.setFormatter(logger.getParent().getHandlers()[0].getFormatter());
-            // logger.addHandler(fh);
-            System.setProperty("java.util.logging.SimpleFormatter.format", "%1$tF %1$tT %4$s %2$s(): %5$s%6$s%n");
-            // System.setProperty("jdk.gtk.version", "4");
-            // System.setProperty("jdk.gtk.verbose", "true");
-            // UIManager.setLookAndFeel("com.sun.java.swing.plaf.gtk.GTKLookAndFeel");
-            // Formatter f =
-            // logger.getParent().getHandlers()[0].getFormatter().format(record);
-            // logger.getParent().getHandlers()[0].setFormatter(f);
-            logger = Logger.getLogger("cortex");
-            logger.setLevel(Level.INFO);
-
-            RECEIVE_ADDRESS = InetAddress.getByAddress(DATA_HOST);
-            // SEND_ADDRESS = InetAddress.getByAddress(FEEDBACK_HOST);
-
-            // fileWriter = new FileWriter("logs/session-data-" + new Date() + ".txt");
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
     }
 
     Control(ControlGUI g) {
 
+        gui = g;
+        initNetworking();
+        initState();
+    }
+
+    void initNetworking() {
+
         try {
-            sendAddress = InetAddress.getByAddress(FEEDBACK_HOST);
-            packet_SND = new DatagramPacket(new byte[3], 3, sendAddress, SEND_PORT);
+
+            listenAddress = InetAddress.getByAddress(DATA_HOST);
+            fbSendAddress = InetAddress.getByAddress(fbSendHost);
+            packet_SND = new DatagramPacket(new byte[3], 3, fbSendAddress, fbSendPort);
+        
         } catch (UnknownHostException e) {
             e.printStackTrace();
         }
-        gui = g;
-
-        initState();
     }
 
     public int getNumChannels() {
@@ -173,7 +160,7 @@ public class Control {
         }
         numChannels = value;
         initState();
-	}
+    }
 
     void shutdown() {
         running = false;
@@ -253,15 +240,15 @@ public class Control {
 
         switch (runMode) {
 
-            case PreBaseline:
-                preBaselineMeans = new float[numChannels][NUM_BANDS];
-                break;
-            case Feedback:
-                fBMeans = new float[numChannels][NUM_BANDS];
-                break;
-            case PostBaseline:
-                postBaselineMeans = new float[numChannels][NUM_BANDS];
-                break;
+        case PreBaseline:
+            preBaselineMeans = new float[numChannels][NUM_BANDS];
+            break;
+        case Feedback:
+            fBMeans = new float[numChannels][NUM_BANDS];
+            break;
+        case PostBaseline:
+            postBaselineMeans = new float[numChannels][NUM_BANDS];
+            break;
         }
 
     }
@@ -296,15 +283,15 @@ public class Control {
         // save a reference to the baseline values
         switch (runMode) {
 
-            case PreBaseline:
-                preBaselineMeans = bandMeans;
-                break;
-            case Feedback:
-                fBMeans = bandMeans;
-                break;
-            case PostBaseline:
-                postBaselineMeans = bandMeans;
-                break;
+        case PreBaseline:
+            preBaselineMeans = bandMeans;
+            break;
+        case Feedback:
+            fBMeans = bandMeans;
+            break;
+        case PostBaseline:
+            postBaselineMeans = bandMeans;
+            break;
         }
 
         // tell the GUI that we have fully stopped
@@ -583,7 +570,7 @@ public class Control {
     void initUDPReciever() {
 
         try {
-            socket_REC = new DatagramSocket(RECEIVE_PORT, RECEIVE_ADDRESS);
+            socket_REC = new DatagramSocket(listenPort, listenAddress);
             socket_REC.setSoTimeout(200);
             listening = true;
             return;
@@ -682,6 +669,5 @@ public class Control {
             first = false;
         }
     } // method
-
 
 } // class
