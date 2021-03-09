@@ -34,7 +34,7 @@ public class Control {
 
     byte[] fbSendHost = LOCAL_HOST;
     private InetAddress fbSendAddress;
-    private int fbSendPort = 54321;
+    int fbSendPort = 54321;
 
     private boolean listening;
     private byte[] buf = new byte[500]; // enough for 8 channels
@@ -126,12 +126,18 @@ public class Control {
 
     Control(ControlGUI g) {
 
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            public void run() {
+                shutdown();
+            }
+        });
+
         gui = g;
         initNetworking();
         initState();
     }
 
-    void initNetworking() {
+    private void initNetworking() {
 
         try {
 
@@ -139,6 +145,9 @@ public class Control {
             fbSendAddress = InetAddress.getByAddress(fbSendHost);
             packet_SND = new DatagramPacket(new byte[3], 3, fbSendAddress, fbSendPort);
         
+            initUDPReciever();
+
+
         } catch (UnknownHostException e) {
             e.printStackTrace();
         }
@@ -195,22 +204,6 @@ public class Control {
             }
         }
         runMode = rMode;
-
-    }
-
-    void initApp() {
-
-        Runtime.getRuntime().addShutdownHook(new Thread() {
-            public void run() {
-                shutdown();
-            }
-        });
-
-        initUDPReciever();
-
-        if (!listening) {
-            return;
-        }
 
     }
 
@@ -567,7 +560,7 @@ public class Control {
         }
     }
 
-    void initUDPReciever() {
+    private void initUDPReciever() {
 
         try {
             socket_REC = new DatagramSocket(listenPort, listenAddress);

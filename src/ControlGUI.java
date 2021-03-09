@@ -7,6 +7,7 @@ import java.awt.GridBagLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.Vector;
+import java.awt.FlowLayout;
 
 import javax.swing.JButton;
 import javax.swing.JComboBox;
@@ -20,9 +21,11 @@ import javax.swing.JSpinner;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.SpinnerNumberModel;
+import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
+import javax.swing.plaf.basic.BasicSpinnerUI;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 
@@ -66,14 +69,6 @@ public class ControlGUI {
 
     private JLabel effRewardRateLabel;
 
-    private void resetState() {
-
-        lastRecordCount = 0;
-        startTimestamp = System.currentTimeMillis();
-        lastReportTime = startTimestamp;
-
-    }
-
     public static void main(String[] args) throws Exception {
 
         new ControlGUI();
@@ -82,9 +77,16 @@ public class ControlGUI {
     protected ControlGUI() {
 
         control = new Control(this);
-        control.initApp();
 
         this.initGUI();
+    }
+
+    private void resetState() {
+
+        lastRecordCount = 0;
+        startTimestamp = System.currentTimeMillis();
+        lastReportTime = startTimestamp;
+
     }
 
     void setRunStatus(int stat) {
@@ -98,12 +100,13 @@ public class ControlGUI {
     private JSpinner getRewardRateSpinner() {
 
         JSpinner spinner = new JSpinner(new SpinnerNumberModel((int) control.targetRewardRate, -90, 90, 5));
-        spinner.setPreferredSize(new Dimension(spinner.getPreferredSize().width-10, spinner.getPreferredSize().height));
+        spinner.setPreferredSize(
+                new Dimension(spinner.getPreferredSize().width - 10, spinner.getPreferredSize().height));
         spinner.addChangeListener(new ChangeListener() {
 
             @Override
             public void stateChanged(ChangeEvent e) {
-                control.targetRewardRate =(Integer) spinner.getValue();
+                control.targetRewardRate = (Integer) spinner.getValue();
             }
 
         });
@@ -127,9 +130,88 @@ public class ControlGUI {
         return spinner;
     }
 
-    // for (int i = 0; i < table.getColumnCount(); i++) {
-    // table.getColumnModel().getColumn(i).setMaxWidth(100);
-    // }
+    private class PortWidget extends JSpinner {
+
+        PortWidget() {
+            
+            super(new SpinnerNumberModel(12345, 1, 65535, 1));
+            
+            setUI(new BasicSpinnerUI() {
+                protected Component createNextButton() {
+                    return null;
+                }
+
+                protected Component createPreviousButton() {
+                    return null;
+                }
+            });
+
+            ((NumberEditor)getEditor()).getFormat().setGroupingUsed(false);
+            Dimension d = getPreferredSize();
+                d.setSize(d.width - 25, d.getHeight());
+                setPreferredSize(d);
+        }
+
+    }
+
+    private class IPAddressWidget extends JPanel {
+
+        Vector<JSpinner> spinners = new Vector<JSpinner>(4);
+
+        IPAddressWidget(byte[] address) {
+
+            FlowLayout flow = (FlowLayout) this.getLayout();
+            flow.setAlignment(FlowLayout.LEFT);
+            flow.setHgap(1);
+            flow.setAlignOnBaseline(true);
+
+            JSpinner spinner;
+            JLabel period;
+
+            for (int i = 0; i < 4; i++) {
+
+                spinner = new JSpinner(new SpinnerNumberModel(control.fbSendHost[i], 0, 254, 1));
+                this.add(spinner);
+
+                if (i < 3) {
+                    period = new JLabel(".");
+                    period.setVerticalAlignment(SwingConstants.BOTTOM);
+                    this.add(period);
+                }
+
+                spinner.setUI(new BasicSpinnerUI() {
+                    protected Component createNextButton() {
+                        return null;
+                    }
+
+                    protected Component createPreviousButton() {
+                        return null;
+                    }
+                });
+
+                // spinner
+                Dimension d = spinner.getPreferredSize();
+                d.setSize(d.width - 5, d.getHeight());
+                spinner.setPreferredSize(d);
+                spinners.add(spinner); 
+
+                spinner.addChangeListener(new ChangeListener() {
+
+                    @Override
+                    public void stateChanged(ChangeEvent e) {
+
+                        JSpinner s = (JSpinner) e.getSource();
+                        int index = spinners.indexOf(s);
+                        address[index] = (byte) (int) s.getValue();
+                    }
+
+                });
+
+
+            }
+        }
+
+    }
 
     private JPanel getDataTab() {
 
@@ -306,11 +388,48 @@ public class ControlGUI {
         gbc.insets.right = 5;
         gbc.anchor = GridBagConstraints.LINE_START;
 
+        final JLabel fbAdressLbl = new JLabel("Feedback IP:");
+
+        IPAddressWidget ipWidget = new IPAddressWidget(control.fbSendHost);
+
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+
+        panel.add(fbAdressLbl, gbc);
+
+        gbc.gridx++;
+        gbc.gridwidth = 3;
+
+        panel.add(ipWidget, gbc);
+
+        gbc.gridwidth = 1;
+
+        JLabel pLabel = new JLabel("Feedback Port:");
+
+        gbc.gridx = 3;
+        panel.add(pLabel, gbc);
+
+        PortWidget portWidget = new PortWidget();
+        portWidget.setValue(control.fbSendPort);
+
+        portWidget.addChangeListener(new ChangeListener(){
+
+            @Override
+            public void stateChanged(ChangeEvent e) {
+                control.fbSendPort = (int) portWidget.getValue();
+            }
+            
+        });
+
+        gbc.gridx++;
+        panel.add(portWidget, gbc);
+
         final JLabel numChannJLabel = new JLabel("Number Channels:");
-        
+
         cspinner = new JSpinner(new SpinnerNumberModel((int) control.getNumChannels(), 4, 16, 4));
-        
-        cspinner.setPreferredSize(new Dimension(cspinner.getPreferredSize().width-5, cspinner.getPreferredSize().height));
+
+        cspinner.setPreferredSize(
+                new Dimension(cspinner.getPreferredSize().width - 5, cspinner.getPreferredSize().height));
         cspinner.addChangeListener(new ChangeListener() {
 
             @Override
@@ -321,32 +440,37 @@ public class ControlGUI {
 
         });
 
+        gbc.gridy++;
+        gbc.gridx = 0;
+
         panel.add(numChannJLabel, gbc);
-        
-        gbc.gridx = 1;
+
+        gbc.gridx++;
         panel.add(cspinner, gbc);
 
         JLabel sustainLabel = new JLabel("Sustainability:");
-        
+
         JSpinner sspinner = new JSpinner(new SpinnerNumberModel((int) control.minNumConsecQualifiers, 1, 10, 1));
-        
-        sspinner.setPreferredSize(new Dimension(sspinner.getPreferredSize().width-5, sspinner.getPreferredSize().height));
+
+        sspinner.setPreferredSize(
+                new Dimension(sspinner.getPreferredSize().width - 5, sspinner.getPreferredSize().height));
         sspinner.addChangeListener(new ChangeListener() {
 
             @Override
             public void stateChanged(ChangeEvent e) {
-                control.minNumConsecQualifiers =(Integer) sspinner.getValue();
+                control.minNumConsecQualifiers = (Integer) sspinner.getValue();
             }
 
         });
 
-        gbc.gridx = 2;
+        gbc.gridx++;
         panel.add(sustainLabel, gbc);
-        
-        gbc.gridx = 3;
+
+        gbc.gridx++;
         panel.add(sspinner, gbc);
-        
-        gbc.gridy = 1;
+
+        gbc.gridy++;
+        gbc.gridx = 0;
 
         JComponent[] comps = getTargetComponents();
 
@@ -517,14 +641,14 @@ public class ControlGUI {
     }
 
     private void reinitTabs() {
-        
+
         window.invalidate();
         window.dispose();
         initGUI();
 
         // refocus on configuration tab
         tp.setSelectedIndex(1);
-    }   
+    }
 
     private void initGUI() {
 
@@ -576,7 +700,7 @@ public class ControlGUI {
 
         gbc.anchor = GridBagConstraints.LINE_START;
         gbc.weightx = 0;
-        gbc.gridx =1;
+        gbc.gridx = 1;
         lowerPanel.add(modeBox, gbc);
 
         gbc.gridx = 2;
@@ -628,7 +752,7 @@ public class ControlGUI {
 
         effRewardRateLabel = new JLabel("0");
         JLabel rewardSuffix = new JLabel("% reward rate");
-        
+
         panel.add(effRewardRateLabel);
         panel.add(rewardSuffix);
 
@@ -651,15 +775,15 @@ public class ControlGUI {
 
                 switch (control.runMode) {
 
-                    case PreBaseline:
-                        prebaselineTable.setModel(ewmaDataModel);
-                        break;
-                    case Feedback:
-                        fbTable.setModel(ewmaDataModel);
-                        break;
-                    case PostBaseline:
-                        postbaselineTable.setModel(ewmaDataModel);
-                        break;
+                case PreBaseline:
+                    prebaselineTable.setModel(ewmaDataModel);
+                    break;
+                case Feedback:
+                    fbTable.setModel(ewmaDataModel);
+                    break;
+                case PostBaseline:
+                    postbaselineTable.setModel(ewmaDataModel);
+                    break;
 
                 }
             }
@@ -681,18 +805,18 @@ public class ControlGUI {
 
         switch (control.runMode) {
 
-            case PreBaseline:
-                prebaselineTable.setModel(prebaselineModel);
-                prebaselineModel.fireTableDataChanged();
-                break;
-            case Feedback:
-                fbTable.setModel(fbTableModel);
-                prebaselineModel.fireTableDataChanged();
-                break;
-            case PostBaseline:
-                postbaselineTable.setModel(postbaselineModel);
-                prebaselineModel.fireTableDataChanged();
-                break;
+        case PreBaseline:
+            prebaselineTable.setModel(prebaselineModel);
+            prebaselineModel.fireTableDataChanged();
+            break;
+        case Feedback:
+            fbTable.setModel(fbTableModel);
+            prebaselineModel.fireTableDataChanged();
+            break;
+        case PostBaseline:
+            postbaselineTable.setModel(postbaselineModel);
+            prebaselineModel.fireTableDataChanged();
+            break;
 
         }
     }
@@ -734,6 +858,5 @@ public class ControlGUI {
         lastReportTime = now;
 
     }
-
 
 } // class
