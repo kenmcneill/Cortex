@@ -7,14 +7,15 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
-import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Scanner;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 
-/** TODO:javadoc */
+/** 
+ * 
+ */
 public class Control {
 
     private static final float ROUNDF = 100f;
@@ -133,22 +134,25 @@ public class Control {
         });
 
         gui = g;
-        initNetworking();
         initState();
     }
 
     private void initNetworking() {
 
+        closeNetworking();
+
         try {
 
             listenAddress = InetAddress.getByAddress(DATA_HOST);
             fbSendAddress = InetAddress.getByAddress(fbSendHost);
+            
             packet_SND = new DatagramPacket(new byte[3], 3, fbSendAddress, fbSendPort);
-        
+            socket_SND = new DatagramSocket();
+            
             initUDPReciever();
 
 
-        } catch (UnknownHostException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
@@ -172,15 +176,10 @@ public class Control {
     }
 
     void shutdown() {
+        
         running = false;
+        closeNetworking();
 
-        if (socket_REC != null) {
-            socket_REC.close();
-        }
-
-        if (socket_SND != null) {
-            socket_SND.close();
-        }
         if (fileWriter == null)
             return;
 
@@ -192,17 +191,19 @@ public class Control {
         }
     }
 
-    protected void setRunMode(RunMode rMode) {
-
-        if (rMode.equals(RunMode.Feedback) && socket_SND == null) {
-            try {
-                socket_SND = new DatagramSocket();
-            } catch (SocketException e) {
-                e.printStackTrace();
-                // can't enter feedback mode
-                return;
-            }
+    private void closeNetworking() {
+        
+        if (socket_REC != null) {
+            socket_REC.close();
         }
+
+        if (socket_SND != null) {
+            socket_SND.close();
+        
+        }
+    }
+    protected void setRunMode(RunMode rMode) {
+    
         runMode = rMode;
 
     }
@@ -214,7 +215,11 @@ public class Control {
         if (running) {
 
             initState();
+            initNetworking();
             startProcessThread();
+
+        } else {
+            closeNetworking();
         }
     }
 
@@ -508,7 +513,7 @@ public class Control {
         float coeff = getTargetCoeff();
 
         // check the sign and inhibit conditions
-        boolean qualify = coeff > 0 && doesInhibitQualify();
+        boolean qualify = (coeff > 0 && doesInhibitQualify());
 
         // check the value
         if (!qualify) {

@@ -9,6 +9,7 @@ import java.awt.event.ActionListener;
 import java.util.Vector;
 import java.awt.FlowLayout;
 
+import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
@@ -23,6 +24,7 @@ import javax.swing.JTable;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
+import javax.swing.border.BevelBorder;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.swing.plaf.basic.BasicSpinnerUI;
@@ -132,10 +134,15 @@ public class ControlGUI {
 
     private class PortWidget extends JSpinner {
 
+        /**
+         *
+         */
+        private static final long serialVersionUID = 1L;
+
         PortWidget() {
-            
+
             super(new SpinnerNumberModel(12345, 1, 65535, 1));
-            
+
             setUI(new BasicSpinnerUI() {
                 protected Component createNextButton() {
                     return null;
@@ -146,16 +153,22 @@ public class ControlGUI {
                 }
             });
 
-            ((NumberEditor)getEditor()).getFormat().setGroupingUsed(false);
+            ((NumberEditor) getEditor()).getFormat().setGroupingUsed(false);
+
             Dimension d = getPreferredSize();
-                d.setSize(d.width - 25, d.getHeight());
-                setPreferredSize(d);
+            d.setSize(d.width - 25, d.getHeight());
+            setPreferredSize(d);
         }
 
     }
 
     private class IPAddressWidget extends JPanel {
 
+        /**
+         *
+         */
+        private static final long serialVersionUID = 1L;
+        
         Vector<JSpinner> spinners = new Vector<JSpinner>(4);
 
         IPAddressWidget(byte[] address) {
@@ -193,7 +206,7 @@ public class ControlGUI {
                 Dimension d = spinner.getPreferredSize();
                 d.setSize(d.width - 5, d.getHeight());
                 spinner.setPreferredSize(d);
-                spinners.add(spinner); 
+                spinners.add(spinner);
 
                 spinner.addChangeListener(new ChangeListener() {
 
@@ -207,10 +220,16 @@ public class ControlGUI {
 
                 });
 
-
             }
         }
+        @Override
+        public void setEnabled(boolean enabled) {
 
+            for (JSpinner spin : spinners) {
+                spin.setEnabled(enabled);
+            }
+
+        }
     }
 
     private JPanel getDataTab() {
@@ -320,7 +339,7 @@ public class ControlGUI {
 
         @Override
         public Float getValueAt(int rowIndex, int columnIndex) {
-            return Math.round(control.preBaselineMeans[rowIndex][columnIndex] * 100) / 100f;
+            return control.preBaselineMeans[rowIndex][columnIndex];
         }
     }
 
@@ -330,7 +349,7 @@ public class ControlGUI {
 
         @Override
         public Float getValueAt(int rowIndex, int columnIndex) {
-            return Math.round(control.fBMeans[rowIndex][columnIndex] * 100) / 100f;
+            return control.fBMeans[rowIndex][columnIndex];
         }
     }
 
@@ -340,7 +359,7 @@ public class ControlGUI {
 
         @Override
         public Float getValueAt(int rowIndex, int columnIndex) {
-            return Math.round(control.postBaselineMeans[rowIndex][columnIndex] * 100) / 100f;
+            return control.postBaselineMeans[rowIndex][columnIndex];
         }
     }
 
@@ -384,45 +403,9 @@ public class ControlGUI {
 
         gbc.insets.bottom = 10;
         gbc.insets.top = 10;
-        gbc.insets.left = 5;
-        gbc.insets.right = 5;
+        gbc.insets.left = 10;
+        gbc.insets.right = 10;
         gbc.anchor = GridBagConstraints.LINE_START;
-
-        final JLabel fbAdressLbl = new JLabel("Feedback IP:");
-
-        IPAddressWidget ipWidget = new IPAddressWidget(control.fbSendHost);
-
-        gbc.gridx = 0;
-        gbc.gridy = 0;
-
-        panel.add(fbAdressLbl, gbc);
-
-        gbc.gridx++;
-        gbc.gridwidth = 3;
-
-        panel.add(ipWidget, gbc);
-
-        gbc.gridwidth = 1;
-
-        JLabel pLabel = new JLabel("Feedback Port:");
-
-        gbc.gridx = 3;
-        panel.add(pLabel, gbc);
-
-        PortWidget portWidget = new PortWidget();
-        portWidget.setValue(control.fbSendPort);
-
-        portWidget.addChangeListener(new ChangeListener(){
-
-            @Override
-            public void stateChanged(ChangeEvent e) {
-                control.fbSendPort = (int) portWidget.getValue();
-            }
-            
-        });
-
-        gbc.gridx++;
-        panel.add(portWidget, gbc);
 
         final JLabel numChannJLabel = new JLabel("Number Channels:");
 
@@ -448,7 +431,7 @@ public class ControlGUI {
         gbc.gridx++;
         panel.add(cspinner, gbc);
 
-        JLabel sustainLabel = new JLabel("Sustainability:");
+        JLabel sustainLabel = new JLabel("Min. # Consecutive Qualifying Samples:");
 
         JSpinner sspinner = new JSpinner(new SpinnerNumberModel((int) control.minNumConsecQualifiers, 1, 10, 1));
 
@@ -464,9 +447,12 @@ public class ControlGUI {
         });
 
         gbc.gridx++;
+        gbc.gridwidth=3;
         panel.add(sustainLabel, gbc);
 
-        gbc.gridx++;
+        gbc.gridwidth=1;
+
+        gbc.gridx = 5;
         panel.add(sspinner, gbc);
 
         gbc.gridy++;
@@ -504,6 +490,41 @@ public class ControlGUI {
 
         } while (++ic < control.inhibitChannels.length);
 
+        final JLabel fbAdressLbl = new JLabel("Feedback Host IP:");
+
+        ipWidget = new IPAddressWidget(control.fbSendHost);
+
+        gbc.gridx = 0;
+
+        panel.add(fbAdressLbl, gbc);
+
+        gbc.gridx++;
+        gbc.gridwidth = 4;
+
+        panel.add(ipWidget, gbc);
+
+        gbc.gridwidth = 1;
+
+        JLabel pLabel = new JLabel("Feedback Port:");
+
+        gbc.gridx = 4;
+        panel.add(pLabel, gbc);
+
+        fbPortWidget = new PortWidget();
+        fbPortWidget.setValue(control.fbSendPort);
+
+        fbPortWidget.addChangeListener(new ChangeListener() {
+
+            @Override
+            public void stateChanged(ChangeEvent e) {
+                control.fbSendPort = (int) fbPortWidget.getValue();
+            }
+
+        });
+
+        gbc.gridx++;
+        panel.add(fbPortWidget, gbc);
+
         return panel;
     }
 
@@ -530,7 +551,7 @@ public class ControlGUI {
             }
         });
 
-        final JLabel flabel = new JLabel("Freq. Band:");
+        final JLabel flabel = new JLabel("Band:");
 
         final JComboBox<String> rbbox = new JComboBox<String>(BAND_NAMES);
         rbbox.setSelectedIndex(control.refBand);
@@ -585,7 +606,7 @@ public class ControlGUI {
 
         });
 
-        JLabel blabel = new JLabel("Freq. Band:");
+        JLabel blabel = new JLabel("Band:");
 
         final JComboBox<String> bbox = new JComboBox<String>(BAND_NAMES);
         bbox.setSelectedIndex(control.targetBand);
@@ -621,7 +642,7 @@ public class ControlGUI {
             }
         });
 
-        JLabel blabel = new JLabel("Freq. Band:");
+        JLabel blabel = new JLabel("Band:");
 
         JComboBox<String> bbox = new JComboBox<String>(BAND_NAMES);
         bbox.setSelectedIndex(control.inhibitBands[i]);
@@ -768,9 +789,12 @@ public class ControlGUI {
 
             if (control.running) {
 
-                cspinner.setEnabled(false);
                 startStopButton.setText(STOP);
                 setRunStatus(Control.RUNNING);
+
+                cspinner.setEnabled(false);
+                ipWidget.setEnabled(false);
+                fbPortWidget.setEnabled(false);
                 modeBox.setEnabled(false);
 
                 switch (control.runMode) {
@@ -795,13 +819,20 @@ public class ControlGUI {
 
     private JSpinner cspinner;
 
+    private IPAddressWidget ipWidget;
+
+    private PortWidget fbPortWidget;
+
     public void stopped() {
 
         startStopButton.setText(START);
         setRunStatus(Control.STOPPED);
         dataRate.setText(String.valueOf("0"));
+
         modeBox.setEnabled(true);
         cspinner.setEnabled(true);
+        ipWidget.setEnabled(true);
+        fbPortWidget.setEnabled(true);
 
         switch (control.runMode) {
 
