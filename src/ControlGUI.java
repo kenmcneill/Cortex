@@ -2,14 +2,13 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.Vector;
-import java.awt.FlowLayout;
 
-import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
@@ -24,7 +23,6 @@ import javax.swing.JTable;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
-import javax.swing.border.BevelBorder;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.swing.plaf.basic.BasicSpinnerUI;
@@ -48,7 +46,7 @@ public class ControlGUI {
     private JLabel dataRate;
     private JLabel runStatusLabel;
 
-    long lastReportTime = 0;
+    long lastReportTime;
     long startTimestamp;
     int lastRecordCount;
 
@@ -67,9 +65,11 @@ public class ControlGUI {
 
     private JComboBox<Control.RunMode> modeBox;
 
-    private JLabel numCutoffValsLabel;
+    private JLabel numCutoffVals;
 
-    private JLabel effRewardRateLabel;
+    private JLabel effRewardRate;
+
+    private JLabel avgRewardAmt;
 
     public static void main(String[] args) throws Exception {
 
@@ -88,6 +88,21 @@ public class ControlGUI {
         lastRecordCount = 0;
         startTimestamp = System.currentTimeMillis();
         lastReportTime = startTimestamp;
+
+        updateUIStats(0);
+
+    }
+
+    private void updateUIStats(int dr) {
+
+        dataRate.setText(String.valueOf(dr));
+
+        numCutoffVals.setText(String.valueOf(control.getCuttoffRate()));
+        effRewardRate.setText(String.valueOf(control.getRewardRate()));
+        avgRewardAmt.setText(String.valueOf(control.getRewardAmt()));
+
+        // trigger table update on current mode
+        ewmaDataModel.fireTableDataChanged();
 
     }
 
@@ -168,7 +183,7 @@ public class ControlGUI {
          *
          */
         private static final long serialVersionUID = 1L;
-        
+
         Vector<JSpinner> spinners = new Vector<JSpinner>(4);
 
         IPAddressWidget(byte[] address) {
@@ -222,6 +237,7 @@ public class ControlGUI {
 
             }
         }
+
         @Override
         public void setEnabled(boolean enabled) {
 
@@ -433,7 +449,7 @@ public class ControlGUI {
 
         JLabel sustainLabel = new JLabel("Min. # Consecutive Qualifying Samples:");
 
-        JSpinner sspinner = new JSpinner(new SpinnerNumberModel((int) control.minNumConsecQualifiers, 1, 10, 1));
+        JSpinner sspinner = new JSpinner(new SpinnerNumberModel((int) control.minNumConsecQualifiers, 1, 50, 5));
 
         sspinner.setPreferredSize(
                 new Dimension(sspinner.getPreferredSize().width - 5, sspinner.getPreferredSize().height));
@@ -447,10 +463,10 @@ public class ControlGUI {
         });
 
         gbc.gridx++;
-        gbc.gridwidth=3;
+        gbc.gridwidth = 3;
         panel.add(sustainLabel, gbc);
 
-        gbc.gridwidth=1;
+        gbc.gridwidth = 1;
 
         gbc.gridx = 5;
         panel.add(sspinner, gbc);
@@ -762,20 +778,32 @@ public class ControlGUI {
 
         panel.add(new JLabel("|"));
 
-        numCutoffValsLabel = new JLabel("0");
+        numCutoffVals = new JLabel("0");
 
         JLabel cuttoffSuffix = new JLabel("% rejected");
 
-        panel.add(numCutoffValsLabel);
+        panel.add(numCutoffVals);
         panel.add(cuttoffSuffix);
 
         panel.add(new JLabel("|"));
 
-        effRewardRateLabel = new JLabel("0");
+        effRewardRate = new JLabel("0");
         JLabel rewardSuffix = new JLabel("% reward rate");
 
-        panel.add(effRewardRateLabel);
+        panel.add(effRewardRate);
         panel.add(rewardSuffix);
+
+        panel.add(new JLabel("|"));
+
+        avgRewardAmt = new JLabel("0");
+        JLabel avgRewardAmtSuffix = new JLabel("% reward amt");
+
+        panel.add(avgRewardAmt);
+        panel.add(avgRewardAmtSuffix);
+
+        Dimension d = panel.getPreferredSize();
+        d.width += 60;
+        panel.setPreferredSize(d);
 
         return panel;
     }
@@ -852,24 +880,9 @@ public class ControlGUI {
         }
     }
 
-    private void reportDataRate(long now) {
-
-        float f = (now - lastReportTime) / 1000f;
-
-        int dr = Math.round((control.recordCount - lastRecordCount) / f);
-
-        lastRecordCount = control.recordCount;
-
-        SwingUtilities.invokeLater(new Runnable() {
-
-            @Override
-            public void run() {
-                dataRate.setText(String.valueOf(dr));
-                numCutoffValsLabel.setText(String.valueOf(control.cuttOffRate));
-            }
-
-        });
-    }
+    /**
+     * Called from non-UI thread
+     */
 
     void doReporting() {
 
@@ -880,11 +893,23 @@ public class ControlGUI {
             return;
         }
 
-        reportDataRate(now);
-        this.numCutoffValsLabel.setText(String.valueOf(control.cuttOffRate));
-        this.effRewardRateLabel.setText(String.valueOf(control.effRewardRate));
-        // trigger table update on current mode
-        ewmaDataModel.fireTableDataChanged();
+        float f = (now - lastReportTime) / 1000f;
+
+        int rc = control.recordCount;
+
+        int dataRate = Math.round((rc - lastRecordCount) / f);
+
+        lastRecordCount = rc;
+
+        SwingUtilities.invokeLater(new Runnable() {
+
+            @Override
+            public void run() {
+                updateUIStats(dataRate);
+
+            }
+
+        });
 
         lastReportTime = now;
 

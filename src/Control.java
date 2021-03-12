@@ -18,13 +18,14 @@ import java.util.regex.Pattern;
  */
 public class Control {
 
-    private static final float ROUNDF = 100f;
+    private static final int MAX_BONUS_DIFF = 10;
+    private static final float BONUS = .01f;
+    private static final int ROUND_FACTOR = 100;
     private static final float _50F = 50f;
     static final int NUM_BANDS = 5;
     private static final int TIMEOUT = 1000;
     private DatagramSocket socket_REC;
     private DatagramSocket socket_SND;
-
 
     private static final byte[] LOCAL_HOST = new byte[] { 127, 0, 0, 1 };
     private static final byte[] THIS_HOST_WILDCARD = new byte[] { 0, 0, 0, 0 };
@@ -44,7 +45,7 @@ public class Control {
     String rawString = null;
     byte[] rawData = null;
 
-    private static final float CUTOFF = 335;
+    private float cutoffPower = 100;
 
     final Pattern pattern = Pattern.compile("\\],\\[|\\[|\\]|,");
 
@@ -56,7 +57,7 @@ public class Control {
     float[][] fBMeans;
     float[][] postBaselineMeans;
 
-    static final float A = .90f;
+    static final float A = .85f;
     static final float ONEMINUS_A = 1f - A;
 
     final static int DELTA_IDX = 0;
@@ -74,8 +75,8 @@ public class Control {
 
     private static final int PREFIX = 28;
     private static final int SUFFIX = 4;
-    private int numChannels = 4;
-    int minNumConsecQualifiers = 3;
+    private int numChannels = 8;
+    int minNumConsecQualifiers = 10;
 
     protected static final int STOPPED = 0;
     protected static final int RUNNING = 1;
@@ -101,6 +102,8 @@ public class Control {
 
     private int numCuttOffVals;
 
+    private float rewardAggregate;
+
     private ControlGUI gui;
 
     int[] inhibitChannels = new int[] { -1, -1 };
@@ -112,8 +115,6 @@ public class Control {
     }
 
     RunMode runMode = RunMode.PreBaseline;
-    int effRewardRate;
-    int cuttOffRate;
 
     static {
 
@@ -134,7 +135,7 @@ public class Control {
         });
 
         gui = g;
-        initState();
+        // initState();
     }
 
     private void initNetworking() {
@@ -145,12 +146,11 @@ public class Control {
 
             listenAddress = InetAddress.getByAddress(DATA_HOST);
             fbSendAddress = InetAddress.getByAddress(fbSendHost);
-            
+
             packet_SND = new DatagramPacket(new byte[3], 3, fbSendAddress, fbSendPort);
             socket_SND = new DatagramSocket();
-            
-            initUDPReciever();
 
+            initUDPReciever();
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -176,7 +176,7 @@ public class Control {
     }
 
     void shutdown() {
-        
+
         running = false;
         closeNetworking();
 
@@ -192,18 +192,19 @@ public class Control {
     }
 
     private void closeNetworking() {
-        
+
         if (socket_REC != null) {
             socket_REC.close();
         }
 
         if (socket_SND != null) {
             socket_SND.close();
-        
+
         }
     }
+
     protected void setRunMode(RunMode rMode) {
-    
+
         runMode = rMode;
 
     }
@@ -218,18 +219,17 @@ public class Control {
             initNetworking();
             startProcessThread();
 
-        } else {
-            closeNetworking();
         }
     }
 
     private void initState() {
 
         recordCount = 0;
-        effRewardRate = 0;
-
         numCuttOffVals = 0;
-        cuttOffRate = 0;
+
+        currNumConsecQualifiers = 0;
+        rewardCount = 0;
+        rewardAggregate = 0;
 
         bandValues = new float[numChannels][NUM_BANDS];
         bandEWMAs = new float[numChannels][NUM_BANDS];
@@ -259,7 +259,14 @@ public class Control {
             public void run() {
 
                 while (running) {
-                    update();
+
+                    try {
+                        update();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        running = false;
+                    }
+
                 }
                 stopped();
             }
@@ -269,6 +276,8 @@ public class Control {
     }
 
     private void stopped() {
+
+        closeNetworking();
 
         if (recordCount == 0) {
             logger.warning("No data was received.");
@@ -298,11 +307,16 @@ public class Control {
 
     private void doCalcMeans() {
 
+
+        float val;
+
         for (int c = 0; c < numChannels; c++) {
 
             for (int b = DELTA_IDX; b < GAMMA_IDX; b++) {
-                bandMeans[c][b] = bandAggrs[c][b] / recordCount;
-                bandMeans[c][b] = Math.round(bandMeans[c][b] * ROUNDF) / ROUNDF;
+                
+                val = bandAggrs[c][b] / recordCount;
+                
+                bandMeans[c][b] = Math.round(val * ROUND_FACTOR) / 100f;
             }
         }
     }
@@ -439,7 +453,7 @@ public class Control {
         }
 
         // get the current feedback value
-        float value = Math.round(this.bandEWMAs[targetChannel][targetBand] * ROUNDF) / ROUNDF;
+        float value = Math.round(this.bandEWMAs[targetChannel][targetBand] * ROUND_FACTOR) / 100F;
 
         return getTargetCoeff(value);
 
@@ -540,20 +554,44 @@ public class Control {
             return;
         }
 
-        // count this reward feedback
+        // count this reward
         this.rewardCount++;
-        this.effRewardRate = (int) ((float) rewardCount / ((float) recordCount) * ROUNDF);
 
-        // 5% bonus for every consecutive pass over minimum
-        float bonus = 1 + (currNumConsecQualifiers - minNumConsecQualifiers) / 5f;
+        // maximum bonus differential
+        int bonusDiff = Math.min(currNumConsecQualifiers - minNumConsecQualifiers, MAX_BONUS_DIFF);
 
-        doSendFeedback(coeff * bonus);
+        // % bonus for every consecutive pass over minimum
+        float bonus = 1 + (bonusDiff * BONUS);
+
+        float fb = coeff * bonus;
+
+        doSendFeedback(fb);
+
+        rewardAggregate += (fb);
+
+    }
+
+    int getRewardRate() {
+        
+        return (int) (rewardCount / ((float) recordCount) * ROUND_FACTOR);
+
+    }
+
+    int getRewardAmt() {
+                
+        return (int) (rewardAggregate * ROUND_FACTOR / (float)rewardCount);
+
+    }
+
+    int getCuttoffRate() {
+
+        return (int) (ROUND_FACTOR * numCuttOffVals / (float)(recordCount * numChannels * Control.NUM_BANDS));
     }
 
     void doSendFeedback(float coeff) {
 
         // convert to percent and truncate
-        int fb = Math.round(coeff * ROUNDF);
+        int fb = Math.round(coeff * ROUND_FACTOR);
 
         // set the reward
         packet_SND.setData(String.valueOf(fb).getBytes());
@@ -563,6 +601,7 @@ public class Control {
         } catch (IOException e) {
             e.printStackTrace();
         }
+
     }
 
     private void initUDPReciever() {
@@ -631,6 +670,9 @@ public class Control {
      */
     void processData() {
 
+        recordCount++; // one more record
+
+
         for (int c = 0; c < numChannels; c++) {
 
             float value;
@@ -641,12 +683,11 @@ public class Control {
 
                 // reject out of range value in microVolts^2/Hz
                 // band ewma will remain unchanged and aggregate needs current mean added
-                if (value > CUTOFF) {
+                if (value > cutoffPower) {
 
                     numCuttOffVals++;
-                    cuttOffRate = Math.round(numCuttOffVals * ROUNDF / recordCount);
 
-                    bandAggrs[c][b] += bandAggrs[c][b] / recordCount;
+                    bandAggrs[c][b] += (bandAggrs[c][b] / recordCount-1);
                     continue;
                 }
 
@@ -655,14 +696,13 @@ public class Control {
                     bandEWMAs[c][b] = value;
 
                 } else {
-                    bandEWMAs[c][b] = (A * value) + ONEMINUS_A * bandEWMAs[c][b];
+                    bandEWMAs[c][b] = (A * value) + (ONEMINUS_A * bandEWMAs[c][b]);
 
                 }
                 // get a pure mean aggregate
                 bandAggrs[c][b] += value;
             }
         }
-        recordCount++; // finished with this record
         if (first) {
             first = false;
         }
