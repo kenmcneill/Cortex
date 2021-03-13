@@ -32,6 +32,9 @@ public class FBParadigm extends SimpleApplication {
   private ParticleEmitter fire;
   private Node top;
 
+  static final float A = .95f;
+  static final float ONEMINUS_A = 1f - A;
+
   private static final float THRUST_COEFF = .01f;
 
   private AudioNode thrustAudio;
@@ -51,6 +54,8 @@ public class FBParadigm extends SimpleApplication {
   long lastTimestamp = 0;
   private Geometry geo;
   private Random random = new Random();
+  private float rewardEMWA = 0;
+  private float rewardCount = 0;
 
   static {
     try {
@@ -157,7 +162,11 @@ public class FBParadigm extends SimpleApplication {
 
   void updateParadigm() {
 
-    top.move(0, THRUST_COEFF * reward, 0);
+    if (rewardCount % 2 > 0) {
+      return;
+    }
+
+    top.move(0, THRUST_COEFF * rewardEMWA, 0);
     // thrustAudio.setVolume(reward);
     updateRewardBar();
 
@@ -165,11 +174,11 @@ public class FBParadigm extends SimpleApplication {
 
   void updateRewardBar() {
 
-    int i = Math.round(reward*10);
+    int i = Math.round(rewardEMWA*10);
 
     geo.setLocalScale(1, 1 + i/10f, 1);
 
-    ColorRGBA c = reward > 0 ? ColorRGBA.Green : ColorRGBA.Yellow;
+    ColorRGBA c = rewardEMWA > 0 ? ColorRGBA.Green : ColorRGBA.Yellow;
 
     geo.getMaterial().setColor("Color", c);
   }
@@ -188,30 +197,29 @@ public class FBParadigm extends SimpleApplication {
       thrustAudio.play();
       // thrustAudio2.play();
       fire.emitAllParticles();
+      rewardEMWA = reward;
+      getReward();
       first = false;
       return;
     }
 
-    calcReward();
+    getReward();
+
     updateParadigm();
   }
 
   private void calcRewardTest() {
 
     // random * STD + MEAN
-    int i = Math.round((float) random.nextGaussian() * 15 + 15f);
+    int i = Math.round((float) random.nextGaussian() * 30 + 30f);
 
     reward = i / 100f;
 
-    try {
-      Thread.sleep(200);
-    } catch (InterruptedException e) {
-      e.printStackTrace();
-    }
-
   }
 
-  void calcReward() {
+  void getReward() {
+
+    rewardCount++;
 
     if (TEST) {
       calcRewardTest();
@@ -221,6 +229,8 @@ public class FBParadigm extends SimpleApplication {
     String s = new String(packet.getData());
 
     reward = Integer.valueOf(s) / 100f;
+
+    rewardEMWA = (A * reward) + (ONEMINUS_A * rewardEMWA);
   }
 
   void initRocketGraphics() {
@@ -240,15 +250,15 @@ public class FBParadigm extends SimpleApplication {
   void initBlastEffect() {
     fire = new ParticleEmitter("blast", Type.Triangle, 30);
 
-    Material mat_red = new Material(assetManager, "Common/MatDefs/Misc/Particle.j3md");
+    Material material = new Material(assetManager, "Common/MatDefs/Misc/Particle.j3md");
 
-    mat_red.setTexture("Texture", assetManager.loadTexture("Effects/Explosion/flame.png"));
-    fire.setMaterial(mat_red);
+    material.setTexture("Texture", assetManager.loadTexture("Effects/Explosion/flame.png"));
+    fire.setMaterial(material);
     fire.setImagesX(2);
     fire.setImagesY(2); // 2x2 texture animation
     fire.setStartColor(new ColorRGBA(1f, .5f, .5f, 1f)); // redish
     fire.setEndColor(new ColorRGBA(1f, 1f, 1f, 0.2f)); // white
-    fire.getParticleInfluencer().setInitialVelocity(new Vector3f(0, -2, 0));
+    fire.getParticleInfluencer().setInitialVelocity(new Vector3f(0, -3, 0));
     fire.setStartSize(.4f);
     fire.setEndSize(0.1f);
     fire.setGravity(0, 0, 0);

@@ -18,7 +18,7 @@ import java.util.regex.Pattern;
  */
 public class Control {
 
-    private static final int MAX_BONUS_DIFF = 10;
+    private static final int MAX_BONUS_DIFF = 20;
     private static final float BONUS = .01f;
     private static final int ROUND_FACTOR = 100;
     private static final float _50F = 50f;
@@ -45,7 +45,7 @@ public class Control {
     String rawString = null;
     byte[] rawData = null;
 
-    private float cutoffPower = 100;
+    private float cutoffPower = 50;
 
     final Pattern pattern = Pattern.compile("\\],\\[|\\[|\\]|,");
 
@@ -307,15 +307,14 @@ public class Control {
 
     private void doCalcMeans() {
 
-
         float val;
 
         for (int c = 0; c < numChannels; c++) {
 
             for (int b = DELTA_IDX; b < GAMMA_IDX; b++) {
-                
+
                 val = bandAggrs[c][b] / recordCount;
-                
+
                 bandMeans[c][b] = Math.round(val * ROUND_FACTOR) / 100f;
             }
         }
@@ -432,10 +431,22 @@ public class Control {
 
     boolean doesValueQualify(float value, int channel, int band) {
 
-        if (channel == targetChannel && band == targetBand) {
-            return getTargetCoeff(value) > 0;
-        }
+        // simplest case
+        if (!isDifferentialMode()) {
 
+            if (channel == targetChannel && band == targetBand) {
+
+                return getTargetCoeff(value) > 0;
+
+            }
+            // differential case
+        } else {
+            if (channel == targetChannel && band == targetBand || channel == refChannel && band == refBand) {
+
+                return getDifferentialCoeff() > 0;
+            }
+        }
+        // inhibit case
         for (int i = 0; i < inhibitChannels.length; i++) {
 
             if (channel == inhibitChannels[i] && band == inhibitBands[i]) {
@@ -446,9 +457,13 @@ public class Control {
         return false;
     }
 
+    private boolean isDifferentialMode() {
+        return refChannel > -1;
+    }
+
     float getTargetCoeff() {
 
-        if (refChannel > -1) {
+        if (isDifferentialMode()) {
             return getDifferentialCoeff();
         }
 
@@ -474,7 +489,7 @@ public class Control {
 
         // invert sign if reward is proportional to suppression
         if (rewardCoeff < 0) {
-            diff -= diff;
+            diff = -diff;
         }
         return diff;
     }
@@ -491,7 +506,8 @@ public class Control {
         // get the reference baseline mean power
         float baseMean2 = preBaselineMeans[refChannel][targetBand];
 
-        float bdiff = (float) Math.log(baseMean1 / baseMean2);
+        // baseline ration of target to reference
+        float baseRatio = baseMean1 / baseMean2;
 
         // get the current feedback value
         float value1 = bandEWMAs[targetChannel][targetBand];
@@ -499,19 +515,21 @@ public class Control {
         // get the current feedback value
         float value2 = bandEWMAs[refChannel][targetBand];
 
-        float vdiff = (float) Math.log(value1 / value2);
+        // corresponding feedback ratio
+        float valueRatio = value1 / value2;
 
         float rewardCoeff = _50F / targetRewardRate;
 
-        // find the effective threshold power value
-        float threshold = bdiff * Math.abs(rewardCoeff);
+        // find the threshold value for the ratio (rewardCoeff could be negative)
+        float threshold = baseRatio * Math.abs(rewardCoeff);
 
-        float rewardDiff = (float) Math.log(vdiff / threshold);
+        // calc the reward differential (negative if value less than threshold)
+        float rewardDiff = (float) Math.log(valueRatio / threshold);
 
         // if coeff is negative, the ratio is being supressed, so reward the negative
         // diff
         if (rewardCoeff < 0) {
-            rewardDiff -= rewardDiff;
+            rewardDiff = -rewardDiff;
         }
 
         return rewardDiff;
@@ -565,27 +583,32 @@ public class Control {
 
         float fb = coeff * bonus;
 
+        // maximum 100%
+        fb = Math.min(fb, 1f);
+
+        // send the value over UDP
         doSendFeedback(fb);
 
-        rewardAggregate += (fb);
+        // keep track of
+        rewardAggregate += fb;
 
     }
 
     int getRewardRate() {
-        
+
         return (int) (rewardCount / ((float) recordCount) * ROUND_FACTOR);
 
     }
 
     int getRewardAmt() {
-                
-        return (int) (rewardAggregate * ROUND_FACTOR / (float)rewardCount);
+
+        return (int) (rewardAggregate * ROUND_FACTOR / (float) rewardCount);
 
     }
 
     int getCuttoffRate() {
 
-        return (int) (ROUND_FACTOR * numCuttOffVals / (float)(recordCount * numChannels * Control.NUM_BANDS));
+        return (int) (ROUND_FACTOR * numCuttOffVals / (float) (recordCount * numChannels * Control.NUM_BANDS));
     }
 
     void doSendFeedback(float coeff) {
@@ -672,7 +695,6 @@ public class Control {
 
         recordCount++; // one more record
 
-
         for (int c = 0; c < numChannels; c++) {
 
             float value;
@@ -687,7 +709,7 @@ public class Control {
 
                     numCuttOffVals++;
 
-                    bandAggrs[c][b] += (bandAggrs[c][b] / recordCount-1);
+                    bandAggrs[c][b] += (bandAggrs[c][b] / recordCount - 1);
                     continue;
                 }
 

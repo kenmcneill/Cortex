@@ -281,7 +281,6 @@ public class ControlGUI {
         panel.add(label, gbc);
 
         fbTable = new JTable(new BandChannelDataModel());
-        fbTable.setDefaultRenderer(Object.class, new CustomCellRenderer());
 
         fbTable.setTableHeader(null);
         fbTable.setPreferredScrollableViewportSize(fbTable.getPreferredSize());
@@ -379,7 +378,7 @@ public class ControlGUI {
         }
     }
 
-    private class CustomCellRenderer extends DefaultTableCellRenderer {
+    private class RealtimeFeedbackCellRenderer extends DefaultTableCellRenderer {
 
         private static final long serialVersionUID = 1L;
 
@@ -832,6 +831,7 @@ public class ControlGUI {
                     break;
                 case Feedback:
                     fbTable.setModel(ewmaDataModel);
+                    fbTable.setDefaultRenderer(Object.class, new RealtimeFeedbackCellRenderer());
                     break;
                 case PostBaseline:
                     postbaselineTable.setModel(ewmaDataModel);
@@ -870,11 +870,12 @@ public class ControlGUI {
             break;
         case Feedback:
             fbTable.setModel(fbTableModel);
-            prebaselineModel.fireTableDataChanged();
+            fbTable.setDefaultRenderer(Object.class, new DefaultTableCellRenderer());
+            fbTableModel.fireTableDataChanged();
             break;
         case PostBaseline:
             postbaselineTable.setModel(postbaselineModel);
-            prebaselineModel.fireTableDataChanged();
+            postbaselineModel.fireTableDataChanged();
             break;
 
         }
@@ -899,19 +900,20 @@ public class ControlGUI {
 
         int dataRate = Math.round((rc - lastRecordCount) / f);
 
-        lastRecordCount = rc;
-
         SwingUtilities.invokeLater(new Runnable() {
 
             @Override
             public void run() {
+                
                 updateUIStats(dataRate);
+
+                // update after the UI
+                lastRecordCount = rc;
+                lastReportTime = now;
 
             }
 
         });
-
-        lastReportTime = now;
 
     }
 
