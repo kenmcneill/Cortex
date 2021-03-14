@@ -28,11 +28,13 @@ import com.jme3.ui.Picture;
 
 public class FBParadigm extends SimpleApplication {
 
+  private static final float _100F = 100f;
+  private static final String COLOR = "Color";
   private Spatial rocket;
   private ParticleEmitter fire;
   private Node top;
 
-  static final float A = .95f;
+  static final float A = .85f;
   static final float ONEMINUS_A = 1f - A;
 
   private static final float THRUST_COEFF = .01f;
@@ -95,7 +97,9 @@ public class FBParadigm extends SimpleApplication {
   }
 
   FBParadigm() {
+
     super(new AppState[] {});
+
     initUDP();
   }
 
@@ -111,11 +115,12 @@ public class FBParadigm extends SimpleApplication {
   }
 
   void initHUDText() {
+
     BitmapText hudText = new BitmapText(guiFont, false);
     // hudText.setSize(guiFont.getCharSet().getRenderedSize()); // font size
     hudText.setSize(28); // font size
     hudText.setColor(ColorRGBA.Blue); // font color
-    hudText.setText("Waiting for signal from control..."); // the text
+    hudText.setText("Waiting for control..."); // the text
     hudText.setLocalTranslation(settings.getWidth() / 3f, settings.getHeight() - 50, 0); // position
     guiNode.attachChild(hudText);
   }
@@ -125,7 +130,7 @@ public class FBParadigm extends SimpleApplication {
     Quad quad = new Quad(20, 50);
     geo = new Geometry("OurQuad", quad);
     Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
-    mat.setColor("Color", ColorRGBA.Gray);
+    mat.setColor(COLOR, ColorRGBA.Gray);
     geo.setMaterial(mat);
     geo.setLocalTranslation(20, settings.getHeight() - 100, 0);
     guiNode.attachChild(geo);
@@ -133,13 +138,13 @@ public class FBParadigm extends SimpleApplication {
     quad = new Quad(20, 25);
     geo = new Geometry("OurQuad", quad);
     mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
-    mat.setColor("Color", ColorRGBA.Green);
+    mat.setColor(COLOR, ColorRGBA.Green);
     geo.setMaterial(mat);
     geo.setLocalTranslation(20, settings.getHeight() - 100, 0);
     guiNode.attachChild(geo);
   }
 
-  void initRocketParadigm() {
+  void initParadigm() {
 
     top = new Node();
     // top.scale(.6f);
@@ -158,62 +163,73 @@ public class FBParadigm extends SimpleApplication {
     thrustAudio.setLooping(true);
     thrustAudio.setPositional(false);
     thrustAudio.setVolume(.5f);
+    thrustAudio.play();
+
+    fire.emitAllParticles();
+
   }
 
   void updateParadigm() {
 
-    if (rewardCount % 2 > 0) {
-      return;
+    top.move(0, THRUST_COEFF * rewardEMWA, 0);
+    
+    if (rewardEMWA > .5) {
+      thrustAudio.setVolume(Math.abs(1f));
+      fire.setParticlesPerSec(30);
+    } else {
+      thrustAudio.setVolume(Math.abs(.5f));
+      fire.setParticlesPerSec(20);
     }
 
-    top.move(0, THRUST_COEFF * rewardEMWA, 0);
-    // thrustAudio.setVolume(reward);
     updateRewardBar();
 
   }
 
   void updateRewardBar() {
 
-    int i = Math.round(rewardEMWA*10);
-
-    geo.setLocalScale(1, 1 + i/10f, 1);
+    geo.setLocalScale(1, 1 + rewardEMWA, 1);
 
     ColorRGBA c = rewardEMWA > 0 ? ColorRGBA.Green : ColorRGBA.Yellow;
 
-    geo.getMaterial().setColor("Color", c);
+    geo.getMaterial().setColor(COLOR, c);
   }
 
   @Override
   public void simpleUpdate(float tpf) {
 
-    // waiting...
-    if (!receiveUDP()) {
-      return;
+    if (!TEST) {
+
+      // waiting...
+      if (!receiveUDP()) {
+        return;
+      }
     }
 
     // get started!
     if (first) {
-      initRocketParadigm();
-      thrustAudio.play();
-      // thrustAudio2.play();
-      fire.emitAllParticles();
-      rewardEMWA = reward;
+      initParadigm();
       getReward();
+      rewardEMWA = reward;
       first = false;
       return;
     }
 
     getReward();
+    calcEWMA();
 
+    // update every 10 samples
+    if (rewardCount % 10 > 0) {
+      return;
+    }
     updateParadigm();
   }
 
-  private void calcRewardTest() {
+  private float calcRewardTest() {
 
     // random * STD + MEAN
     int i = Math.round((float) random.nextGaussian() * 30 + 30f);
 
-    reward = i / 100f;
+    return i / 100f;
 
   }
 
@@ -222,15 +238,16 @@ public class FBParadigm extends SimpleApplication {
     rewardCount++;
 
     if (TEST) {
-      calcRewardTest();
+      reward = calcRewardTest();
       return;
     }
-
     String s = new String(packet.getData());
+    reward = Integer.valueOf(s) / _100F;
 
-    reward = Integer.valueOf(s) / 100f;
+  }
 
-    rewardEMWA = (A * reward) + (ONEMINUS_A * rewardEMWA);
+  void calcEWMA() {
+    rewardEMWA = .1f * Math.round(10 * (A * reward + ONEMINUS_A * rewardEMWA));
   }
 
   void initRocketGraphics() {
@@ -256,7 +273,7 @@ public class FBParadigm extends SimpleApplication {
     fire.setMaterial(material);
     fire.setImagesX(2);
     fire.setImagesY(2); // 2x2 texture animation
-    fire.setStartColor(new ColorRGBA(1f, .5f, .5f, 1f)); // redish
+    fire.setStartColor(new ColorRGBA(1f, .4f, .4f, 1f)); // redish
     fire.setEndColor(new ColorRGBA(1f, 1f, 1f, 0.2f)); // white
     fire.getParticleInfluencer().setInitialVelocity(new Vector3f(0, -3, 0));
     fire.setStartSize(.4f);
@@ -309,10 +326,6 @@ public class FBParadigm extends SimpleApplication {
   }
 
   boolean receiveUDP() {
-
-    if (TEST) {
-      return true;
-    }
 
     try {
       socket.receive(packet);
