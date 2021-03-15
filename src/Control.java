@@ -550,12 +550,7 @@ public class Control {
         // check the value
         if (!qualify) {
 
-            // NOP
-            if (currNumConsecQualifiers == 0) {
-                return;
-            }
-
-            // reset
+            // reset in case last iteration qualified
             currNumConsecQualifiers = 0;
 
             // send new state

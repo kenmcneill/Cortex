@@ -5,41 +5,29 @@ import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.Random;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import com.jme3.app.SimpleApplication;
 import com.jme3.app.state.AppState;
 import com.jme3.asset.plugins.FileLocator;
-import com.jme3.audio.AudioData.DataType;
-import com.jme3.audio.AudioNode;
-import com.jme3.effect.ParticleEmitter;
-import com.jme3.effect.ParticleMesh.Type;
 import com.jme3.font.BitmapText;
 import com.jme3.material.Material;
 import com.jme3.math.ColorRGBA;
-import com.jme3.math.Vector3f;
 import com.jme3.renderer.ViewPort;
 import com.jme3.scene.Geometry;
-import com.jme3.scene.Node;
-import com.jme3.scene.Spatial;
 import com.jme3.scene.shape.Quad;
 import com.jme3.system.AppSettings;
 import com.jme3.ui.Picture;
 
 public class FBParadigm extends SimpleApplication {
 
+  private static final int UPDATE_INTERVAL = 200;
   private static final float _100F = 100f;
   private static final String COLOR = "Color";
-  private Spatial rocket;
-  private ParticleEmitter fire;
-  private Node top;
 
   static final float A = .85f;
   static final float ONEMINUS_A = 1f - A;
-
-  private static final float THRUST_COEFF = .01f;
-
-  private AudioNode thrustAudio;
 
   static Logger logger = Logger.getLogger("cortex");
 
@@ -53,14 +41,16 @@ public class FBParadigm extends SimpleApplication {
   byte[] rawData = null;
   float reward = .1f;
   boolean first = true;
-  long lastTimestamp = 0;
   private Geometry geo;
   private Random random = new Random();
-  private float rewardEMWA = 0;
-  private float rewardCount = 0;
+  protected float rewardEMWA = 0;
+  private long lastUpdateTime = 0;
 
   static {
     try {
+      System.setProperty("java.util.logging.SimpleFormatter.format", "%1$tF %1$tT %4$s %2$s(): %5$s%6$s%n");
+      logger = Logger.getLogger("cortex");
+      logger.setLevel(Level.INFO);
       inet = InetAddress.getByAddress(new byte[] { 0, 0, 0, 0 });
     } catch (UnknownHostException e) {
       e.printStackTrace();
@@ -78,7 +68,7 @@ public class FBParadigm extends SimpleApplication {
       }
     });
 
-    FBParadigm app = new FBParadigm();
+    RocketParadigm app = new RocketParadigm();
 
     app.setShowSettings(false);
 
@@ -109,7 +99,7 @@ public class FBParadigm extends SimpleApplication {
     logger.info("");
 
     assetManager.registerLocator(".", FileLocator.class);
-    initBackground();
+    setBackground("assets/FunkyBackground.png");
     initHUDText();
     initRewardBar();
   }
@@ -146,42 +136,9 @@ public class FBParadigm extends SimpleApplication {
 
   void initParadigm() {
 
-    top = new Node();
-    // top.scale(.6f);
-    top.setLocalScale(.5f);
-    top.setLocalTranslation(0, -3.5f, 0);
-
-    initRocketGraphics();
-    initBlastEffect();
-
-    top.attachChild(rocket);
-    top.attachChild(fire);
-
-    rootNode.attachChild(top);
-
-    thrustAudio = new AudioNode(assetManager, "assets/quietthrust.wav", DataType.Buffer);
-    thrustAudio.setLooping(true);
-    thrustAudio.setPositional(false);
-    thrustAudio.setVolume(.5f);
-    thrustAudio.play();
-
-    fire.emitAllParticles();
-
   }
 
   void updateParadigm() {
-
-    top.move(0, THRUST_COEFF * rewardEMWA, 0);
-    
-    if (rewardEMWA > .5) {
-      thrustAudio.setVolume(Math.abs(1f));
-      fire.setParticlesPerSec(30);
-    } else {
-      thrustAudio.setVolume(Math.abs(.5f));
-      fire.setParticlesPerSec(20);
-    }
-
-    updateRewardBar();
 
   }
 
@@ -217,11 +174,17 @@ public class FBParadigm extends SimpleApplication {
     getReward();
     calcEWMA();
 
-    // update every 10 samples
-    if (rewardCount % 10 > 0) {
+    long now = System.currentTimeMillis();
+    
+    // 
+    if (now - lastUpdateTime < UPDATE_INTERVAL) {
       return;
     }
+    lastUpdateTime = now;
+
+    // System.out.println(this.rewardEMWA);
     updateParadigm();
+
   }
 
   private float calcRewardTest() {
@@ -235,8 +198,6 @@ public class FBParadigm extends SimpleApplication {
 
   void getReward() {
 
-    rewardCount++;
-
     if (TEST) {
       reward = calcRewardTest();
       return;
@@ -247,52 +208,15 @@ public class FBParadigm extends SimpleApplication {
   }
 
   void calcEWMA() {
-    rewardEMWA = .1f * Math.round(10 * (A * reward + ONEMINUS_A * rewardEMWA));
+
+    rewardEMWA = .1f * Math.round(10 * ((A * reward) + (ONEMINUS_A * rewardEMWA)));
   }
 
-  void initRocketGraphics() {
+  void setBackground(String assetPath) {
 
-    rocket = (Spatial) assetManager.loadModel("assets/10475_Rocket_Ship_v1_L3.obj");
-    rocket.setLocalScale(.01f);
-    rocket.setLocalTranslation(0, 0, 0);
-    rocket.rotate((float) -Math.PI / 2, 0, 0f);
+    Picture pic = new Picture("backgroundPic");
 
-    Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
-    mat.setTexture("ColorMap", assetManager.loadTexture("assets/10475_Rocket_Ship_v1_Diffuse.jpg"));
-
-    rocket.setMaterial(mat);
-
-  }
-
-  void initBlastEffect() {
-    fire = new ParticleEmitter("blast", Type.Triangle, 30);
-
-    Material material = new Material(assetManager, "Common/MatDefs/Misc/Particle.j3md");
-
-    material.setTexture("Texture", assetManager.loadTexture("Effects/Explosion/flame.png"));
-    fire.setMaterial(material);
-    fire.setImagesX(2);
-    fire.setImagesY(2); // 2x2 texture animation
-    fire.setStartColor(new ColorRGBA(1f, .4f, .4f, 1f)); // redish
-    fire.setEndColor(new ColorRGBA(1f, 1f, 1f, 0.2f)); // white
-    fire.getParticleInfluencer().setInitialVelocity(new Vector3f(0, -3, 0));
-    fire.setStartSize(.4f);
-    fire.setEndSize(0.1f);
-    fire.setGravity(0, 0, 0);
-    fire.setLowLife(0.5f);
-    fire.setHighLife(1.5f);
-    fire.getParticleInfluencer().setVelocityVariation(0.1f);
-
-    fire.setParticlesPerSec(20);
-
-    rootNode.attachChild(fire);
-  }
-
-  void initBackground() {
-
-    Picture pic = new Picture("background");
-
-    pic.setImage(assetManager, "assets/FunkyBackground.png", false);
+    pic.setImage(assetManager, assetPath, false);
 
     pic.setWidth(settings.getWidth());
 
@@ -300,7 +224,7 @@ public class FBParadigm extends SimpleApplication {
 
     pic.setPosition(0, 0);
 
-    ViewPort pv = renderManager.createPreView("background", cam);
+    ViewPort pv = renderManager.createPreView("backgroundPV", cam);
 
     pv.setClearFlags(true, true, true);
 
