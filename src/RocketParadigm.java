@@ -11,12 +11,13 @@ import com.jme3.scene.Spatial;
 public class RocketParadigm extends FBParadigm {
 
   private Spatial rocket;
-  private ParticleEmitter fire;
-  private Node top;
+  private ParticleEmitter blastEffect;
+  private Node rocketNode;
 
-  private static final float THRUST_COEFF = .04f;
+  private static final float THRUST_COEFF = .005f;
 
   private AudioNode thrustAudio;
+  private long lastVolumeChange;
   
     RocketParadigm() {
         super();
@@ -25,45 +26,53 @@ public class RocketParadigm extends FBParadigm {
 
   void initParadigm() {
 
-    top = new Node();
+    rocketNode = new Node();
     // top.scale(.6f);
-    top.setLocalScale(.5f);
-    top.setLocalTranslation(0, -3.5f, 0);
+    rocketNode.setLocalScale(.5f);
+    rocketNode.setLocalTranslation(0, -3.5f, 0);
 
     initRocketGraphics();
     initBlastEffect();
 
-    top.attachChild(rocket);
-    top.attachChild(fire);
+    rocketNode.attachChild(rocket);
+    rocketNode.attachChild(blastEffect);
 
-    rootNode.attachChild(top);
+    rootNode.attachChild(rocketNode);
 
     thrustAudio = new AudioNode(assetManager, "assets/quietthrust.wav", DataType.Buffer);
     thrustAudio.setLooping(true);
     thrustAudio.setPositional(false);
-    thrustAudio.setVolume(.5f);
+    thrustAudio.setVolume(.1f);
     thrustAudio.play();
 
-    fire.emitAllParticles();
+    blastEffect.emitAllParticles();
 
   }
 
-  void updateParadigm() {
+  void updateParadigm(long now) {
 
-    top.move(0, THRUST_COEFF * rewardEMWA, 0);
-    
-    if (rewardEMWA > .6) {
-      thrustAudio.setVolume(1f);
-      fire.setParticlesPerSec(40);
-    } else {
-      thrustAudio.setVolume(.5f);
-      fire.setParticlesPerSec(20);
+    rocketNode.move(0, THRUST_COEFF * rewardEMWA, 0);
+
+    if (now - lastVolumeChange < 250) {
+      return;
     }
 
-    updateRewardBar();
+    float low = .2f;
+    float med = .5f;
+    float hi = .7f;
 
+    if (rewardEMWA <= low) {
+      thrustAudio.setVolume(low);
+      blastEffect.setParticlesPerSec(15);
+    } else if (rewardEMWA <= med) {
+      thrustAudio.setVolume(med);
+      blastEffect.setParticlesPerSec(30);
+    } else {
+      thrustAudio.setVolume(hi);
+      blastEffect.setParticlesPerSec(45);
+    }
+    lastVolumeChange = now;
   }
-
 
   void initRocketGraphics() {
 
@@ -80,30 +89,27 @@ public class RocketParadigm extends FBParadigm {
   }
 
   void initBlastEffect() {
-    fire = new ParticleEmitter("blast", Type.Triangle, 30);
+    blastEffect = new ParticleEmitter("blast", Type.Triangle, 15);
 
     Material material = new Material(assetManager, "Common/MatDefs/Misc/Particle.j3md");
 
     material.setTexture("Texture", assetManager.loadTexture("Effects/Explosion/flame.png"));
-    fire.setMaterial(material);
-    fire.setImagesX(2);
-    fire.setImagesY(2); // 2x2 texture animation
-    fire.setStartColor(new ColorRGBA(1f, .4f, .4f, 1f)); // redish
-    fire.setEndColor(new ColorRGBA(1f, 1f, 1f, 0.2f)); // white
-    fire.getParticleInfluencer().setInitialVelocity(new Vector3f(0, -3, 0));
-    fire.setStartSize(.4f);
-    fire.setEndSize(0.1f);
-    fire.setGravity(0, 0, 0);
-    fire.setLowLife(0.5f);
-    fire.setHighLife(1.5f);
-    fire.getParticleInfluencer().setVelocityVariation(0.1f);
+    blastEffect.setMaterial(material);
+    blastEffect.setImagesX(2);
+    blastEffect.setImagesY(2); // 2x2 texture animation
+    blastEffect.setStartColor(new ColorRGBA(1f, .4f, .4f, 1f)); // redish
+    blastEffect.setEndColor(new ColorRGBA(1f, 1f, 1f, 0.2f)); // white
+    blastEffect.getParticleInfluencer().setInitialVelocity(new Vector3f(0, -3, 0));
+    blastEffect.setStartSize(.4f);
+    blastEffect.setEndSize(0.1f);
+    blastEffect.setGravity(0, 0, 0);
+    blastEffect.setLowLife(0.5f);
+    blastEffect.setHighLife(1.5f);
+    blastEffect.getParticleInfluencer().setVelocityVariation(0.1f);
 
-    fire.setParticlesPerSec(20);
+    blastEffect.setParticlesPerSec(20);
 
-    rootNode.attachChild(fire);
-  }
-
-  void initBackground() {
+    rocketNode.attachChild(blastEffect);
   }
 
 

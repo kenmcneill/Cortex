@@ -12,6 +12,9 @@ import com.jme3.app.SimpleApplication;
 import com.jme3.app.state.AppState;
 import com.jme3.asset.plugins.FileLocator;
 import com.jme3.font.BitmapText;
+import com.jme3.input.KeyInput;
+import com.jme3.input.controls.ActionListener;
+import com.jme3.input.controls.KeyTrigger;
 import com.jme3.material.Material;
 import com.jme3.math.ColorRGBA;
 import com.jme3.renderer.ViewPort;
@@ -20,20 +23,20 @@ import com.jme3.scene.shape.Quad;
 import com.jme3.system.AppSettings;
 import com.jme3.ui.Picture;
 
-public class FBParadigm extends SimpleApplication {
+public abstract class FBParadigm extends SimpleApplication {
 
-  private static final int UPDATE_INTERVAL = 200;
+  private static final int INTERVAL = 250;
   private static final float _100F = 100f;
   private static final String COLOR = "Color";
 
-  static final float A = .85f;
-  static final float ONEMINUS_A = 1f - A;
+  private static float A = .75f;
+  private static float ONEMINUS_A = 1f - A;
 
   static Logger logger = Logger.getLogger("cortex");
 
   private static InetAddress inet;
   private static final int PORT = 54321;
-  private static final boolean TEST = true;
+  private boolean testMode = false;
   private static DatagramSocket socket;
   private byte[] buf = new byte[10];
   DatagramPacket packet = new DatagramPacket(buf, buf.length);
@@ -44,7 +47,7 @@ public class FBParadigm extends SimpleApplication {
   private Geometry geo;
   private Random random = new Random();
   protected float rewardEMWA = 0;
-  private long lastUpdateTime = 0;
+  private long lastRewardBarUpdateTime = 0;
 
   static {
     try {
@@ -57,20 +60,29 @@ public class FBParadigm extends SimpleApplication {
     }
   }
 
+  void setSmoothing(float s) {
+
+    if (s > 1 || s < .1) {
+      logger.warning("Smoothing must > .1 and < 1");
+      return;
+    }
+
+    A = s;
+    ONEMINUS_A = 1f - A;
+  }
+
   public static void main(String[] args) throws Exception {
 
-    Runtime.getRuntime().addShutdownHook(new Thread() {
-      public void run() {
+    RocketParadigm paradigm = new RocketParadigm();
 
-        if (socket != null) {
-          socket.close();
-        }
-      }
-    });
+    paradigm.start();
+  }
 
-    RocketParadigm app = new RocketParadigm();
+  FBParadigm() {
 
-    app.setShowSettings(false);
+    super(new AppState[] {});
+
+    this.setShowSettings(false);
 
     AppSettings settings = new AppSettings(true);
 
@@ -80,17 +92,24 @@ public class FBParadigm extends SimpleApplication {
 
     settings.put("Cortex", "Neurofeedback");
 
-    app.setSettings(settings);
+    this.setSettings(settings);
 
-    app.start();
+    this.initUDP();
 
+    addShutdownHook();
   }
 
-  FBParadigm() {
+  private void addShutdownHook() {
 
-    super(new AppState[] {});
+    Runtime.getRuntime().addShutdownHook(new Thread() {
+      public void run() {
 
-    initUDP();
+        if (socket != null) {
+          socket.close();
+        }
+        FBParadigm.this.stop();
+      }
+    });
   }
 
   @Override
@@ -102,12 +121,26 @@ public class FBParadigm extends SimpleApplication {
     setBackground("assets/FunkyBackground.png");
     initHUDText();
     initRewardBar();
+    inputManager.addMapping("Test Mode", new KeyTrigger(KeyInput.KEY_T));
+    inputManager.addListener(actionListener, new String[] { "Test Mode" });
+
+    initParadigm();
   }
+
+  private ActionListener actionListener = new ActionListener() {
+    public void onAction(String name, boolean keyPressed, float tpf) {
+
+      if (!keyPressed) {
+        System.out.println("Toggle Test Mode...");
+        testMode = !testMode;
+      }
+    }
+  };
+  private BitmapText hudText;
 
   void initHUDText() {
 
-    BitmapText hudText = new BitmapText(guiFont, false);
-    // hudText.setSize(guiFont.getCharSet().getRenderedSize()); // font size
+    hudText = new BitmapText(guiFont, false);
     hudText.setSize(28); // font size
     hudText.setColor(ColorRGBA.Blue); // font color
     hudText.setText("Waiting for control..."); // the text
@@ -117,7 +150,7 @@ public class FBParadigm extends SimpleApplication {
 
   void initRewardBar() {
 
-    Quad quad = new Quad(20, 50);
+    Quad quad = new Quad(30, 80);
     geo = new Geometry("OurQuad", quad);
     Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
     mat.setColor(COLOR, ColorRGBA.Gray);
@@ -125,7 +158,7 @@ public class FBParadigm extends SimpleApplication {
     geo.setLocalTranslation(20, settings.getHeight() - 100, 0);
     guiNode.attachChild(geo);
 
-    quad = new Quad(20, 25);
+    quad = new Quad(30, 40);
     geo = new Geometry("OurQuad", quad);
     mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
     mat.setColor(COLOR, ColorRGBA.Green);
@@ -134,27 +167,29 @@ public class FBParadigm extends SimpleApplication {
     guiNode.attachChild(geo);
   }
 
-  void initParadigm() {
+  abstract void initParadigm();
 
-  }
+  abstract void updateParadigm(long now);
 
-  void updateParadigm() {
+  private void updateRewardBar(long now) {
 
-  }
-
-  void updateRewardBar() {
+    if (now - lastRewardBarUpdateTime < INTERVAL) {
+      return;
+    }
 
     geo.setLocalScale(1, 1 + rewardEMWA, 1);
 
-    ColorRGBA c = rewardEMWA > 0 ? ColorRGBA.Green : ColorRGBA.Yellow;
+    ColorRGBA c = rewardEMWA < 0f ? ColorRGBA.Red : rewardEMWA < .1f ? ColorRGBA.Yellow : ColorRGBA.Green;
 
     geo.getMaterial().setColor(COLOR, c);
+
+    lastRewardBarUpdateTime = now;
   }
 
   @Override
   public void simpleUpdate(float tpf) {
 
-    if (!TEST) {
+    if (!testMode) {
 
       // waiting...
       if (!receiveUDP()) {
@@ -164,7 +199,7 @@ public class FBParadigm extends SimpleApplication {
 
     // get started!
     if (first) {
-      initParadigm();
+      hudText.removeFromParent();
       getReward();
       rewardEMWA = reward;
       first = false;
@@ -175,30 +210,23 @@ public class FBParadigm extends SimpleApplication {
     calcEWMA();
 
     long now = System.currentTimeMillis();
-    
-    // 
-    if (now - lastUpdateTime < UPDATE_INTERVAL) {
-      return;
-    }
-    lastUpdateTime = now;
-
-    // System.out.println(this.rewardEMWA);
-    updateParadigm();
+    updateRewardBar(now);
+    updateParadigm(now);
 
   }
 
   private float calcRewardTest() {
 
     // random * STD + MEAN
-    int i = Math.round((float) random.nextGaussian() * 30 + 30f);
+    int i = Math.round((float) random.nextGaussian() * 30 + 20f);
 
     return i / 100f;
 
   }
 
-  void getReward() {
+  private void getReward() {
 
-    if (TEST) {
+    if (testMode) {
       reward = calcRewardTest();
       return;
     }
@@ -207,9 +235,10 @@ public class FBParadigm extends SimpleApplication {
 
   }
 
-  void calcEWMA() {
+  private void calcEWMA() {
 
-    rewardEMWA = .1f * Math.round(10 * ((A * reward) + (ONEMINUS_A * rewardEMWA)));
+    rewardEMWA = .01f * Math.round(100 * ((A * reward) + (ONEMINUS_A * rewardEMWA)));
+
   }
 
   void setBackground(String assetPath) {
@@ -241,7 +270,7 @@ public class FBParadigm extends SimpleApplication {
 
     try {
       socket = new DatagramSocket(PORT, inet);
-      socket.setSoTimeout(200);
+      socket.setSoTimeout(20);
 
     } catch (SocketException e1) {
       e1.printStackTrace();
@@ -255,7 +284,6 @@ public class FBParadigm extends SimpleApplication {
       socket.receive(packet);
       return true;
     } catch (SocketTimeoutException e) {
-      logger.warning("Socket timed out.");
       return false;
 
     } catch (Exception e) {
