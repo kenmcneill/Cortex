@@ -45,7 +45,7 @@ public class Control {
     String rawString = null;
     byte[] rawData = null;
 
-    private float cutoffPower = 50;
+    private float cutoffPower = 40;
 
     final Pattern pattern = Pattern.compile("\\],\\[|\\[|\\]|,");
 
@@ -76,7 +76,7 @@ public class Control {
     private static final int PREFIX = 28;
     private static final int SUFFIX = 4;
     private int numChannels = 8;
-    int minNumConsecQualifiers = 10;
+    int minNumConsecQualifiers = 5;
 
     protected static final int STOPPED = 0;
     protected static final int RUNNING = 1;
@@ -552,9 +552,9 @@ public class Control {
 
             // reset in case last iteration qualified
             currNumConsecQualifiers = 0;
-
-            // send new state
-            doSendFeedback(coeff);
+    
+            // send new state ()
+            doSendFeedback(Math.max(coeff, -1f));
             return;
 
         }
@@ -584,7 +584,7 @@ public class Control {
         // send the value over UDP
         doSendFeedback(fb);
 
-        // keep track of
+        // keep track of reward quantity
         rewardAggregate += fb;
 
     }
@@ -612,7 +612,7 @@ public class Control {
         int fb = Math.round(coeff * ROUND_FACTOR);
 
         // set the reward
-        packet_SND.setData(String.valueOf(fb).getBytes());
+        packet_SND.setData(new byte[]{(byte) fb});
 
         try {
             socket_SND.send(packet_SND);
@@ -662,6 +662,7 @@ public class Control {
 
         Scanner scanner = new Scanner(bais).useDelimiter(pattern);
 
+        // number of channels
         int c = 0;
 
         // Always 5 bands

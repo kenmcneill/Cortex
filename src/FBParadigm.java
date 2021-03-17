@@ -230,8 +230,8 @@ public abstract class FBParadigm extends SimpleApplication {
       reward = calcRewardTest();
       return;
     }
-    String s = new String(packet.getData());
-    reward = Integer.valueOf(s) / _100F;
+
+    reward = packet.getData()[0] / _100F;
 
   }
 
