@@ -1,11 +1,9 @@
-import javax.swing.JTable;
+import java.awt.Color;
 import java.awt.Component;
-import java.util.concurrent.DelayQueue;
 
+import javax.swing.JTable;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
-
-import java.awt.Color;
 
 class ChannelBandDataModel extends AbstractTableModel {
 
@@ -113,6 +111,11 @@ class ChannelBandDataModel extends AbstractTableModel {
             if (delta > 0) {
                 rend.setBackground(Color.RED);
                 return rend;
+            }
+
+            if (!control.runMode.equals(Control.RunMode.Feedback)) {
+                rend.setBackground(Color.WHITE);
+                return rend;                
             }
 
             float fvalue = (Float) value;

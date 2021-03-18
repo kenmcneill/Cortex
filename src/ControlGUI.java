@@ -758,16 +758,16 @@ public class ControlGUI {
         switch (control.runMode) {
 
         case PreBaseline:
-            // prebaselineTable.setModel(prebaselineModel);
+            prebaselineTable.setDefaultRenderer(Object.class, new DefaultTableCellRenderer());
             prebaselineModel.fireTableDataChanged();
             break;
         case Feedback:
-            fbTable.setModel(fbTableModel);
+            fbTable.setModel(fbTableModel); 
             fbTable.setDefaultRenderer(Object.class, new DefaultTableCellRenderer());
             fbTableModel.fireTableDataChanged();
             break;
         case PostBaseline:
-            // postbaselineTable.setModel(postbaselineModel);
+            postbaselineTable.setDefaultRenderer(Object.class, new DefaultTableCellRenderer());
             postbaselineModel.fireTableDataChanged();
             break;
 
