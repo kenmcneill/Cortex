@@ -1,5 +1,4 @@
 import java.awt.BorderLayout;
-import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
@@ -26,7 +25,6 @@ import javax.swing.SwingUtilities;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.swing.plaf.basic.BasicSpinnerUI;
-import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 
 /**
@@ -39,7 +37,7 @@ public class ControlGUI {
     private static final String STOP = "STOP []";
     private static final String START = "START >";
 
-    private static final String[] BAND_NAMES = { "Delta", "Theta", "Alpha", "Beta", "Gamma" };
+    static final String[] BAND_NAMES = { "Delta", "Theta", "Alpha", "Beta", "Gamma" };
 
     private JFrame window;
 
@@ -56,10 +54,10 @@ public class ControlGUI {
     private JTable fbTable;
     private JTable postbaselineTable;
 
-    private EWMADataModel ewmaDataModel;
-    private PreBaselineMeanDataModel prebaselineModel;
-    private FeedbackMeanDataModel fbTableModel;
-    private PostBaselineMeanDataModel postbaselineModel;
+    private ChannelBandDataModel.EWMADataModel ewmaDataModel;
+    private ChannelBandDataModel.PreBaselineMeanDataModel prebaselineModel;
+    private ChannelBandDataModel.FeedbackMeanDataModel fbTableModel;
+    private ChannelBandDataModel.PostBaselineMeanDataModel postbaselineModel;
 
     private JButton startStopButton;
 
@@ -70,6 +68,14 @@ public class ControlGUI {
     private JLabel effRewardRate;
 
     private JLabel avgRewardAmt;
+
+    private JTabbedPane tp;
+
+    private JSpinner cspinner;
+
+    private IPAddressWidget ipWidget;
+
+    private PortWidget fbPortWidget;
 
     public static void main(String[] args) throws Exception {
 
@@ -101,9 +107,6 @@ public class ControlGUI {
         effRewardRate.setText(String.valueOf(control.getRewardRate()));
         avgRewardAmt.setText(String.valueOf(control.getRewardAmt()));
 
-        // trigger table update on current mode
-        ewmaDataModel.fireTableDataChanged();
-
     }
 
     void setRunStatus(int stat) {
@@ -116,7 +119,7 @@ public class ControlGUI {
 
     private JSpinner getRewardRateSpinner() {
 
-        JSpinner spinner = new JSpinner(new SpinnerNumberModel((int) control.targetRewardRate, -90, 90, 5));
+        JSpinner spinner = new JSpinner(new SpinnerNumberModel((int) control.targetRewardRate, -99, 99, 1));
         spinner.setPreferredSize(
                 new Dimension(spinner.getPreferredSize().width - 10, spinner.getPreferredSize().height));
         spinner.addChangeListener(new ChangeListener() {
@@ -250,10 +253,10 @@ public class ControlGUI {
 
     private JPanel getDataTab() {
 
-        ewmaDataModel = new EWMADataModel();
-        prebaselineModel = new PreBaselineMeanDataModel();
-        fbTableModel = new FeedbackMeanDataModel();
-        postbaselineModel = new PostBaselineMeanDataModel();
+        ewmaDataModel = new ChannelBandDataModel.EWMADataModel(control);
+        prebaselineModel = new ChannelBandDataModel.PreBaselineMeanDataModel(control);
+        fbTableModel = new ChannelBandDataModel.FeedbackMeanDataModel(control);
+        postbaselineModel = new ChannelBandDataModel.PostBaselineMeanDataModel(control);
 
         JPanel panel = new JPanel();
         GridBagLayout gLayout = new GridBagLayout();
@@ -266,7 +269,7 @@ public class ControlGUI {
 
         panel.add(label, gbc);
 
-        prebaselineTable = new JTable(new BandChannelDataModel());
+        prebaselineTable = new JTable(new ChannelBandDataModel(control));
 
         prebaselineTable.setPreferredScrollableViewportSize(prebaselineTable.getPreferredSize());
 
@@ -280,7 +283,7 @@ public class ControlGUI {
         gbc.gridy = 2;
         panel.add(label, gbc);
 
-        fbTable = new JTable(new BandChannelDataModel());
+        fbTable = new JTable(new ChannelBandDataModel(control));
 
         fbTable.setTableHeader(null);
         fbTable.setPreferredScrollableViewportSize(fbTable.getPreferredSize());
@@ -295,7 +298,7 @@ public class ControlGUI {
         gbc.gridy = 4;
         panel.add(label, gbc);
 
-        postbaselineTable = new JTable(new BandChannelDataModel());
+        postbaselineTable = new JTable(new ChannelBandDataModel(control));
         postbaselineTable.setTableHeader(null);
         postbaselineTable.setPreferredScrollableViewportSize(fbTable.getPreferredSize());
 
@@ -304,110 +307,6 @@ public class ControlGUI {
         gbc.gridy = 5;
         panel.add(scrollPane, gbc);
         return panel;
-    }
-
-    private class BandChannelDataModel extends AbstractTableModel {
-
-        /**
-         *
-         */
-        private static final long serialVersionUID = 1L;
-
-        @Override
-        public String getColumnName(int column) {
-
-            return BAND_NAMES[column];
-        }
-
-        @Override
-        public int getRowCount() {
-            return control.getNumChannels();
-        }
-
-        @Override
-        public int getColumnCount() {
-            return Control.NUM_BANDS;
-        }
-
-        @Override
-        public Float getValueAt(int rowIndex, int columnIndex) {
-            return null;
-        }
-
-    }
-
-    private class EWMADataModel extends BandChannelDataModel {
-
-        private static final long serialVersionUID = 1L;
-
-        @Override
-        public Float getValueAt(int rowIndex, int columnIndex) {
-
-            return Math.round(control.bandEWMAs[rowIndex][columnIndex] * 100) / 100f;
-        }
-
-    }
-
-    private class PreBaselineMeanDataModel extends BandChannelDataModel {
-
-        private static final long serialVersionUID = 1L;
-
-        @Override
-        public Float getValueAt(int rowIndex, int columnIndex) {
-            return control.preBaselineMeans[rowIndex][columnIndex];
-        }
-    }
-
-    private class FeedbackMeanDataModel extends BandChannelDataModel {
-
-        private static final long serialVersionUID = 1L;
-
-        @Override
-        public Float getValueAt(int rowIndex, int columnIndex) {
-            return control.fBMeans[rowIndex][columnIndex];
-        }
-    }
-
-    private class PostBaselineMeanDataModel extends BandChannelDataModel {
-
-        private static final long serialVersionUID = 1L;
-
-        @Override
-        public Float getValueAt(int rowIndex, int columnIndex) {
-            return control.postBaselineMeans[rowIndex][columnIndex];
-        }
-    }
-
-    private class RealtimeFeedbackCellRenderer extends DefaultTableCellRenderer {
-
-        private static final long serialVersionUID = 1L;
-
-        /**
-         * @see javax.swing.table.DefaultTableCellRenderer#getTableCellRendererComponent(JTable,
-         *      Object, boolean, boolean, int, int)
-         */
-        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus,
-                int row, int column) {
-
-            Component rend = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-
-            if (value == null) {
-                return rend;
-            }
-
-            float fvalue = (Float) value;
-
-            boolean qual = control.doesValueQualify(fvalue, row, column);
-
-            if (qual) {
-                rend.setBackground(Color.GREEN);
-            } else {
-                rend.setBackground(Color.WHITE);
-            }
-
-            return rend;
-        }
-
     }
 
     private JPanel getConfigTab() {
@@ -448,7 +347,7 @@ public class ControlGUI {
 
         JLabel sustainLabel = new JLabel("Min. # Consecutive Qualifying Samples:");
 
-        JSpinner sspinner = new JSpinner(new SpinnerNumberModel((int) control.minNumConsecQualifiers, 1, 50, 5));
+        JSpinner sspinner = new JSpinner(new SpinnerNumberModel((int) control.minNumConsecQualifiers, 1, 50, 1));
 
         sspinner.setPreferredSize(
                 new Dimension(sspinner.getPreferredSize().width - 5, sspinner.getPreferredSize().height));
@@ -827,14 +726,16 @@ public class ControlGUI {
                 switch (control.runMode) {
 
                 case PreBaseline:
-                    prebaselineTable.setModel(ewmaDataModel);
+                    prebaselineTable.setModel(prebaselineModel);
+                    prebaselineTable.setDefaultRenderer(Object.class, new ChannelBandDataModel.ColorRenderer(control));
                     break;
                 case Feedback:
                     fbTable.setModel(ewmaDataModel);
-                    fbTable.setDefaultRenderer(Object.class, new RealtimeFeedbackCellRenderer());
+                    fbTable.setDefaultRenderer(Object.class, new ChannelBandDataModel.ColorRenderer(control));
                     break;
                 case PostBaseline:
-                    postbaselineTable.setModel(ewmaDataModel);
+                    postbaselineTable.setModel(postbaselineModel);
+                    postbaselineTable.setDefaultRenderer(Object.class, new ChannelBandDataModel.ColorRenderer(control));
                     break;
 
                 }
@@ -842,14 +743,6 @@ public class ControlGUI {
 
         }
     };
-
-    private JTabbedPane tp;
-
-    private JSpinner cspinner;
-
-    private IPAddressWidget ipWidget;
-
-    private PortWidget fbPortWidget;
 
     public void stopped() {
 
@@ -865,7 +758,7 @@ public class ControlGUI {
         switch (control.runMode) {
 
         case PreBaseline:
-            prebaselineTable.setModel(prebaselineModel);
+            // prebaselineTable.setModel(prebaselineModel);
             prebaselineModel.fireTableDataChanged();
             break;
         case Feedback:
@@ -874,7 +767,7 @@ public class ControlGUI {
             fbTableModel.fireTableDataChanged();
             break;
         case PostBaseline:
-            postbaselineTable.setModel(postbaselineModel);
+            // postbaselineTable.setModel(postbaselineModel);
             postbaselineModel.fireTableDataChanged();
             break;
 
@@ -894,19 +787,35 @@ public class ControlGUI {
             return;
         }
 
-        float f = (now - lastReportTime) / 1000f;
+        float timeDelta = (now - lastReportTime) / 1000f;
 
         int rc = control.recordCount;
 
-        int dataRate = Math.round((rc - lastRecordCount) / f);
+        int dataRate = Math.round((rc - lastRecordCount) / timeDelta);
 
         SwingUtilities.invokeLater(new Runnable() {
 
             @Override
             public void run() {
-                
+
                 updateUIStats(dataRate);
 
+                switch (control.runMode) {
+
+                case PreBaseline:
+                    control.calcMeans();
+                    prebaselineModel.fireTableDataChanged();
+                    break;
+                case Feedback:
+                    // during active feedback, we use ewma model
+                    ewmaDataModel.fireTableDataChanged();
+                    break;
+                case PostBaseline:
+                    control.calcMeans();
+                    postbaselineModel.fireTableDataChanged();
+                    break;
+
+                }
                 // update after the UI
                 lastRecordCount = rc;
                 lastReportTime = now;

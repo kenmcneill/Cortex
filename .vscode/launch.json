@@ -10,7 +10,7 @@
             "name": "Launch ControlGUI",
             "request": "launch",
             "mainClass": "ControlGUI",
-            "projectName": "Cortex_aff4d85a"
+            "projectName": "Cortex_aff4d85a",
         },
         {
             "type": "java",
@@ -18,7 +18,6 @@
             "request": "launch",
             "mainClass": "FBParadigm",
             "projectName": "Cortex_aff4d85a",
-            "console": "externalTerminal"
         },
         {
             "type": "java",

@@ -57,9 +57,9 @@ public class RocketParadigm extends FBParadigm {
       return;
     }
 
-    float low = .2f;
-    float med = .5f;
-    float hi = .7f;
+    float low = .3f;
+    float med = .6f;
+    float hi = 1f;
 
     if (rewardEMWA <= low) {
       thrustAudio.setVolume(low);
@@ -97,17 +97,17 @@ public class RocketParadigm extends FBParadigm {
     blastEffect.setMaterial(material);
     blastEffect.setImagesX(2);
     blastEffect.setImagesY(2); // 2x2 texture animation
-    blastEffect.setStartColor(new ColorRGBA(1f, .4f, .4f, 1f)); // redish
-    blastEffect.setEndColor(new ColorRGBA(1f, 1f, 1f, 0.2f)); // white
+    blastEffect.setStartColor(new ColorRGBA(1f, 1f, 1f, 1f)); // white
+    blastEffect.setEndColor(new ColorRGBA(0f, 0f, 1f, .2f)); // blueish
     blastEffect.getParticleInfluencer().setInitialVelocity(new Vector3f(0, -3, 0));
     blastEffect.setStartSize(.4f);
     blastEffect.setEndSize(0.1f);
     blastEffect.setGravity(0, 0, 0);
     blastEffect.setLowLife(0.5f);
-    blastEffect.setHighLife(1.5f);
-    blastEffect.getParticleInfluencer().setVelocityVariation(0.1f);
+    blastEffect.setHighLife(1f);
+    blastEffect.getParticleInfluencer().setVelocityVariation(0.2f);
 
-    blastEffect.setParticlesPerSec(20);
+    blastEffect.setParticlesPerSec(15);
 
     rocketNode.attachChild(blastEffect);
   }

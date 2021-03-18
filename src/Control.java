@@ -100,7 +100,7 @@ public class Control {
 
     private int currNumConsecQualifiers = 0;
 
-    private int numCuttOffVals;
+    int numCuttOffVals;
 
     private float rewardAggregate;
 
@@ -115,6 +115,7 @@ public class Control {
     }
 
     RunMode runMode = RunMode.PreBaseline;
+    int[][] cuttOffCounts;
 
     static {
 
@@ -236,6 +237,8 @@ public class Control {
         bandAggrs = new float[numChannels][NUM_BANDS];
         bandMeans = new float[numChannels][NUM_BANDS]; // do this in doCalcMeans()?
 
+        cuttOffCounts = new int[numChannels][NUM_BANDS];
+
         switch (runMode) {
 
         case PreBaseline:
@@ -285,27 +288,13 @@ public class Control {
             return;
         }
 
-        doCalcMeans();
-
-        // save a reference to the baseline values
-        switch (runMode) {
-
-        case PreBaseline:
-            preBaselineMeans = bandMeans;
-            break;
-        case Feedback:
-            fBMeans = bandMeans;
-            break;
-        case PostBaseline:
-            postBaselineMeans = bandMeans;
-            break;
-        }
+        calcMeans();
 
         // tell the GUI that we have fully stopped
         gui.stopped();
     }
 
-    private void doCalcMeans() {
+    void calcMeans() {
 
         float val;
 
@@ -317,6 +306,19 @@ public class Control {
 
                 bandMeans[c][b] = Math.round(val * ROUND_FACTOR) / 100f;
             }
+        }
+        // set a reference into mean values
+        switch (runMode) {
+
+        case PreBaseline:
+            preBaselineMeans = bandMeans;
+            break;
+        case Feedback:
+            fBMeans = bandMeans;
+            break;
+        case PostBaseline:
+            postBaselineMeans = bandMeans;
+            break;
         }
     }
 
@@ -552,7 +554,7 @@ public class Control {
 
             // reset in case last iteration qualified
             currNumConsecQualifiers = 0;
-    
+
             // send new state ()
             doSendFeedback(Math.max(coeff, -1f));
             return;
@@ -601,9 +603,11 @@ public class Control {
 
     }
 
-    int getCuttoffRate() {
+    float getCuttoffRate() {
+        
+        float f = numCuttOffVals / (float) (recordCount * numChannels * Control.NUM_BANDS);
 
-        return (int) (ROUND_FACTOR * numCuttOffVals / (float) (recordCount * numChannels * Control.NUM_BANDS));
+        return Math.round(f *1000) / 10f;
     }
 
     void doSendFeedback(float coeff) {
@@ -612,7 +616,7 @@ public class Control {
         int fb = Math.round(coeff * ROUND_FACTOR);
 
         // set the reward
-        packet_SND.setData(new byte[]{(byte) fb});
+        packet_SND.setData(new byte[] { (byte) fb });
 
         try {
             socket_SND.send(packet_SND);
@@ -704,7 +708,7 @@ public class Control {
                 if (value > cutoffPower) {
 
                     numCuttOffVals++;
-
+                    cuttOffCounts[c][b]++;
                     bandAggrs[c][b] += (bandAggrs[c][b] / recordCount - 1);
                     continue;
                 }
