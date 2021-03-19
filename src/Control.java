@@ -38,7 +38,6 @@ public class Control {
     private InetAddress fbSendAddress;
     int fbSendPort = 54321;
 
-    private boolean listening;
     private byte[] buf = new byte[500]; // enough for 8 channels
     DatagramPacket packet_REC = new DatagramPacket(buf, buf.length);
     DatagramPacket packet_SND;
@@ -631,13 +630,11 @@ public class Control {
         try {
             socket_REC = new DatagramSocket(listenPort, listenAddress);
             socket_REC.setSoTimeout(200);
-            listening = true;
             return;
 
         } catch (SocketException e1) {
             e1.printStackTrace();
         }
-        listening = false;
     }
 
     boolean receiveUDP() {

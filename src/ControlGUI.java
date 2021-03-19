@@ -21,7 +21,6 @@ import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingConstants;
-import javax.swing.SwingUtilities;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.swing.plaf.basic.BasicSpinnerUI;
@@ -31,6 +30,10 @@ import javax.swing.table.DefaultTableCellRenderer;
  * ControlGUI
  */
 public class ControlGUI {
+
+    private static final float MS_PER_SEC = 1000f;
+
+    private static final int REPORT_INTERVAL = 2000;
 
     private static final String[] RUNSTATUS = { "Stopped", "Running", "Timed out" };
 
@@ -92,17 +95,17 @@ public class ControlGUI {
     private void resetState() {
 
         lastRecordCount = 0;
-        startTimestamp = System.currentTimeMillis();
-        lastReportTime = startTimestamp;
+        lastReportTime = 0;
 
-        updateUIStats(0);
+        startTimestamp = System.currentTimeMillis();
+
+        updateStatLabels(0);
 
     }
 
-    private void updateUIStats(int dr) {
+    private void updateStatLabels(int dr) {
 
         dataRate.setText(String.valueOf(dr));
-
         numCutoffVals.setText(String.valueOf(control.getCuttoffRate()));
         effRewardRate.setText(String.valueOf(control.getRewardRate()));
         avgRewardAmt.setText(String.valueOf(control.getRewardAmt()));
@@ -111,8 +114,15 @@ public class ControlGUI {
 
     void setRunStatus(int stat) {
 
-        if (stat == Control.RUNNING) {
-            resetState();
+        switch (stat) {
+
+            case Control.RUNNING:
+                resetState();
+                break;
+        
+            case Control.TIMED_OUT:
+                dataRate.setText("0");
+                break;
         }
         runStatusLabel.setText(RUNSTATUS[stat]);
     }
@@ -762,7 +772,7 @@ public class ControlGUI {
             prebaselineModel.fireTableDataChanged();
             break;
         case Feedback:
-            fbTable.setModel(fbTableModel); 
+            fbTable.setModel(fbTableModel);
             fbTable.setDefaultRenderer(Object.class, new DefaultTableCellRenderer());
             fbTableModel.fireTableDataChanged();
             break;
@@ -783,46 +793,38 @@ public class ControlGUI {
         long now = System.currentTimeMillis();
 
         // check how much time has passed since last report
-        if (now - lastReportTime < 2000) {
+        if (now - lastReportTime < REPORT_INTERVAL) {
             return;
         }
 
-        float timeDelta = (now - lastReportTime) / 1000f;
+        float timeDelta = (now - lastReportTime) / MS_PER_SEC;
 
         int rc = control.recordCount;
 
         int dataRate = Math.round((rc - lastRecordCount) / timeDelta);
 
-        SwingUtilities.invokeLater(new Runnable() {
+        updateStatLabels(dataRate);
 
-            @Override
-            public void run() {
+        // update after the UI
+        lastRecordCount = rc;
+        lastReportTime = now;
 
-                updateUIStats(dataRate);
+        switch (control.runMode) {
 
-                switch (control.runMode) {
+        case PreBaseline:
+            control.calcMeans();
+            prebaselineModel.fireTableDataChanged();
+            break;
+        case Feedback:
+            // during active feedback, we use ewma model
+            ewmaDataModel.fireTableDataChanged();
+            break;
+        case PostBaseline:
+            control.calcMeans();
+            postbaselineModel.fireTableDataChanged();
+            break;
 
-                case PreBaseline:
-                    control.calcMeans();
-                    prebaselineModel.fireTableDataChanged();
-                    break;
-                case Feedback:
-                    // during active feedback, we use ewma model
-                    ewmaDataModel.fireTableDataChanged();
-                    break;
-                case PostBaseline:
-                    control.calcMeans();
-                    postbaselineModel.fireTableDataChanged();
-                    break;
-
-                }
-                // update after the UI
-                lastRecordCount = rc;
-                lastReportTime = now;
-
-            }
-
-        });
+        }
 
     }
 
