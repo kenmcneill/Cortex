@@ -1,16 +1,16 @@
 import java.awt.BorderLayout;
-import java.awt.Component;
 import java.awt.Dimension;
-import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.Vector;
 
+import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
+import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -20,10 +20,8 @@ import javax.swing.JSpinner;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.SpinnerNumberModel;
-import javax.swing.SwingConstants;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
-import javax.swing.plaf.basic.BasicSpinnerUI;
 import javax.swing.table.DefaultTableCellRenderer;
 
 /**
@@ -37,8 +35,8 @@ public class ControlGUI {
 
     private static final String[] RUNSTATUS = { "Stopped", "Running", "Timed out" };
 
-    private static final String STOP = "STOP []";
-    private static final String START = "START >";
+    private static final String STOP = "Stop";
+    private static final String START = "Start";
 
     static final String[] BAND_NAMES = { "Delta", "Theta", "Alpha", "Beta", "Gamma" };
 
@@ -78,7 +76,7 @@ public class ControlGUI {
 
     private IPAddressWidget ipWidget;
 
-    private PortWidget fbPortWidget;
+    private IPAddressWidget.PortWidget fbPortWidget;
 
     public static void main(String[] args) throws Exception {
 
@@ -160,106 +158,7 @@ public class ControlGUI {
         return spinner;
     }
 
-    private class PortWidget extends JSpinner {
-
-        /**
-         *
-         */
-        private static final long serialVersionUID = 1L;
-
-        PortWidget() {
-
-            super(new SpinnerNumberModel(12345, 1, 65535, 1));
-
-            setUI(new BasicSpinnerUI() {
-                protected Component createNextButton() {
-                    return null;
-                }
-
-                protected Component createPreviousButton() {
-                    return null;
-                }
-            });
-
-            ((NumberEditor) getEditor()).getFormat().setGroupingUsed(false);
-
-            Dimension d = getPreferredSize();
-            d.setSize(d.width - 25, d.getHeight());
-            setPreferredSize(d);
-        }
-
-    }
-
-    private class IPAddressWidget extends JPanel {
-
-        /**
-         *
-         */
-        private static final long serialVersionUID = 1L;
-
-        Vector<JSpinner> spinners = new Vector<JSpinner>(4);
-
-        IPAddressWidget(byte[] address) {
-
-            FlowLayout flow = (FlowLayout) this.getLayout();
-            flow.setAlignment(FlowLayout.LEFT);
-            flow.setHgap(1);
-            flow.setAlignOnBaseline(true);
-
-            JSpinner spinner;
-            JLabel period;
-
-            for (int i = 0; i < 4; i++) {
-
-                spinner = new JSpinner(new SpinnerNumberModel(control.fbSendHost[i], 0, 254, 1));
-                this.add(spinner);
-
-                if (i < 3) {
-                    period = new JLabel(".");
-                    period.setVerticalAlignment(SwingConstants.BOTTOM);
-                    this.add(period);
-                }
-
-                spinner.setUI(new BasicSpinnerUI() {
-                    protected Component createNextButton() {
-                        return null;
-                    }
-
-                    protected Component createPreviousButton() {
-                        return null;
-                    }
-                });
-
-                // spinner
-                Dimension d = spinner.getPreferredSize();
-                d.setSize(d.width - 5, d.getHeight());
-                spinner.setPreferredSize(d);
-                spinners.add(spinner);
-
-                spinner.addChangeListener(new ChangeListener() {
-
-                    @Override
-                    public void stateChanged(ChangeEvent e) {
-
-                        JSpinner s = (JSpinner) e.getSource();
-                        int index = spinners.indexOf(s);
-                        address[index] = (byte) (int) s.getValue();
-                    }
-
-                });
-
-            }
-        }
-
-        @Override
-        public void setEnabled(boolean enabled) {
-
-            for (JSpinner spin : spinners) {
-                spin.setEnabled(enabled);
-            }
-
-        }
-    }
+    
 
     private JPanel getDataTab() {
 
@@ -272,11 +171,15 @@ public class ControlGUI {
         GridBagLayout gLayout = new GridBagLayout();
 
         panel.setLayout(gLayout);
-
         GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets.top = 5;
+        gbc.insets.bottom = 5;
+
+        panel.add(getToolBar(), gbc);
 
         JLabel label = new JLabel("Pre-Baseline Means:");
 
+        gbc.gridy=1;
         panel.add(label, gbc);
 
         prebaselineTable = new JTable(new ChannelBandDataModel(control));
@@ -285,12 +188,12 @@ public class ControlGUI {
 
         JScrollPane scrollPane = new JScrollPane(prebaselineTable);
 
-        gbc.gridy = 1;
+        gbc.gridy++;
         panel.add(scrollPane, gbc);
 
         label = new JLabel("Feedback Means:");
 
-        gbc.gridy = 2;
+        gbc.gridy++;
         panel.add(label, gbc);
 
         fbTable = new JTable(new ChannelBandDataModel(control));
@@ -300,12 +203,12 @@ public class ControlGUI {
 
         scrollPane = new JScrollPane(fbTable);
 
-        gbc.gridy = 3;
+        gbc.gridy++;
         panel.add(scrollPane, gbc);
 
         label = new JLabel("Post-Baseline Means:");
 
-        gbc.gridy = 4;
+        gbc.gridy++;
         panel.add(label, gbc);
 
         postbaselineTable = new JTable(new ChannelBandDataModel(control));
@@ -314,7 +217,7 @@ public class ControlGUI {
 
         scrollPane = new JScrollPane(postbaselineTable);
 
-        gbc.gridy = 5;
+        gbc.gridy++;
         panel.add(scrollPane, gbc);
         return panel;
     }
@@ -416,7 +319,7 @@ public class ControlGUI {
 
         final JLabel fbAdressLbl = new JLabel("Feedback Host IP:");
 
-        ipWidget = new IPAddressWidget(control.fbSendHost);
+        ipWidget = new IPAddressWidget(this, control.fbSendHost);
 
         gbc.gridx = 0;
 
@@ -434,7 +337,7 @@ public class ControlGUI {
         gbc.gridx = 4;
         panel.add(pLabel, gbc);
 
-        fbPortWidget = new PortWidget();
+        fbPortWidget = new IPAddressWidget.PortWidget();
         fbPortWidget.setValue(control.fbSendPort);
 
         fbPortWidget.addChangeListener(new ChangeListener() {
@@ -595,25 +498,7 @@ public class ControlGUI {
         tp.setSelectedIndex(1);
     }
 
-    private void initGUI() {
-
-        window = new JFrame("Cortex Control");
-        window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        window.setSize(640, 320);
-
-        window.getContentPane().setLayout(new BorderLayout());
-
-        tp = new JTabbedPane();
-
-        window.add(tp, BorderLayout.CENTER);
-
-        tp.add("Data", getDataTab());
-        tp.add("Configuration", getConfigTab());
-
-        JPanel lowerPanel = new JPanel();
-        lowerPanel.setLayout(new GridBagLayout());
-
-        window.getContentPane().add(lowerPanel, BorderLayout.SOUTH);
+    private JPanel getToolBar() {
 
         startStopButton = new JButton(START);
         startStopButton.addActionListener(startStopActionListener);
@@ -630,34 +515,52 @@ public class ControlGUI {
 
         });
 
-        GridBagConstraints gbc = new GridBagConstraints();
+        saveButton = new JButton("Save");
+        saveButton.setEnabled(false);
 
-        gbc.insets.bottom = 5;
-        gbc.insets.top = 5;
-        gbc.insets.left = 2;
-        gbc.insets.right = 2;
+        saveButton.addActionListener(new ActionListener(){
 
-        gbc.anchor = GridBagConstraints.LINE_END;
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                JFileChooser chooser = new JFileChooser();
+                chooser.showSaveDialog(window);
+            }
+            
+        });
 
-        gbc.gridx = 0;
-        gbc.weightx = .5;
-        lowerPanel.add(modeStatusTitle, gbc);
+        JPanel panel = new JPanel();
+        panel.setBorder(BorderFactory.createEtchedBorder());
 
-        gbc.anchor = GridBagConstraints.LINE_START;
-        gbc.weightx = 0;
-        gbc.gridx = 1;
-        lowerPanel.add(modeBox, gbc);
+        panel.add(modeStatusTitle);
+        panel.add(modeBox);
+        panel.add(startStopButton);
+        panel.add(saveButton);
 
-        gbc.gridx = 2;
-        gbc.weightx = .5;
-        lowerPanel.add(startStopButton, gbc);
+        return panel;
 
-        // status bar
-        gbc.anchor = GridBagConstraints.CENTER;
-        gbc.gridx = 0;
-        gbc.gridy = 1;
-        gbc.gridwidth = 3;
-        lowerPanel.add(getStatusBar(), gbc);
+    }
+
+    private void initGUI() {
+
+        window = new JFrame("Cortex Control");
+        window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        window.setSize(640, 320);
+
+        window.getContentPane().setLayout(new BorderLayout());
+
+        tp = new JTabbedPane(JTabbedPane.TOP);
+
+        window.add(tp, BorderLayout.CENTER);
+
+        tp.add("Data", getDataTab());
+        tp.add("Configuration", getConfigTab());
+
+        JPanel lowerPanel = new JPanel();
+        lowerPanel.setLayout(new GridBagLayout());
+
+        lowerPanel.add(getStatusBar());
+
+        window.getContentPane().add(lowerPanel, BorderLayout.SOUTH);
 
         window.pack();
         window.setVisible(true);
@@ -725,13 +628,18 @@ public class ControlGUI {
 
             if (control.running) {
 
+                // tool bar
                 startStopButton.setText(STOP);
+                modeBox.setEnabled(false);
+                saveButton.setEnabled(false);
+
+                // status bar
                 setRunStatus(Control.RUNNING);
 
+                // configuration tab
                 cspinner.setEnabled(false);
                 ipWidget.setEnabled(false);
                 fbPortWidget.setEnabled(false);
-                modeBox.setEnabled(false);
 
                 switch (control.runMode) {
 
@@ -754,13 +662,21 @@ public class ControlGUI {
         }
     };
 
+    private JButton saveButton;
+
     public void stopped() {
 
+        // tool bar
         startStopButton.setText(START);
+        saveButton.setEnabled(true);
+        modeBox.setEnabled(true);
+
+        // status bar
         setRunStatus(Control.STOPPED);
         dataRate.setText(String.valueOf("0"));
 
-        modeBox.setEnabled(true);
+
+        // configuration tab
         cspinner.setEnabled(true);
         ipWidget.setEnabled(true);
         fbPortWidget.setEnabled(true);
