@@ -8,6 +8,7 @@ import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.Scanner;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -81,11 +82,8 @@ public class Control {
     protected static final int RUNNING = 1;
     protected static final int TIMED_OUT = 2;
 
-    private StringBuilder sb = new StringBuilder(50);
-
     static Logger logger;
     static File dataFile;
-    static FileWriter fileWriter;
 
     boolean running = false;
     int recordCount;
@@ -121,8 +119,6 @@ public class Control {
         System.setProperty("java.util.logging.SimpleFormatter.format", "%1$tF %1$tT %4$s %2$s(): %5$s%6$s%n");
         logger = Logger.getLogger("cortex");
         logger.setLevel(Level.INFO);
-
-        // fileWriter = new FileWriter("logs/session-data-" + new Date() + ".txt");
 
     }
 
@@ -179,16 +175,6 @@ public class Control {
 
         running = false;
         closeNetworking();
-
-        if (fileWriter == null)
-            return;
-
-        try {
-            fileWriter.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-
-        }
     }
 
     private void closeNetworking() {
@@ -299,7 +285,7 @@ public class Control {
 
         for (int c = 0; c < numChannels; c++) {
 
-            for (int b = DELTA_IDX; b < GAMMA_IDX; b++) {
+            for (int b = DELTA_IDX; b <= GAMMA_IDX; b++) {
 
                 val = bandAggrs[c][b] / recordCount;
 
@@ -357,20 +343,24 @@ public class Control {
 
     }
 
-    void reportValues(long now) {
+    void saveData(String filename) {
 
-        // reuse builder
-        sb.delete(0, sb.length());
+        FileWriter fileWriter = null;
 
-        sb.append(now);
-
-        for (int b = DELTA_IDX; b < GAMMA_IDX; b++) {
-
-            sb.append(',');
-            sb.append(bandEWMAs[b]);
-
+        try {
+            fileWriter = new FileWriter("logs/session-data-" + new Date() + ".txt");
+        } catch (IOException e1) {
+            e1.printStackTrace();
         }
+
+        StringBuilder sb = new StringBuilder();
+        
+        getValue(preBaselineMeans, sb);
+        getValue(fBMeans, sb);
+        getValue(postBaselineMeans, sb);
+
         sb.append("\n");
+        
         try {
             // fileWriter.write(sb.toString());
             System.out.println(sb.toString());
@@ -378,6 +368,21 @@ public class Control {
             e.printStackTrace();
         }
 
+    }
+
+    private void getValue(float[][] table, StringBuilder sb) {
+
+        for (int c = 0; c < numChannels; c++) {
+
+            for (int b = DELTA_IDX; b <= GAMMA_IDX; b++) {
+
+                sb.append(table[c][b]);
+                if (b < GAMMA_IDX) {
+                    sb.append(",");
+                } 
+            }
+            sb.append("\n");
+        }
     }
 
     boolean doesInhibitQualify() {
@@ -603,10 +608,10 @@ public class Control {
     }
 
     float getCuttoffRate() {
-        
+
         float f = numCuttOffVals / (float) (recordCount * numChannels * Control.NUM_BANDS);
 
-        return Math.round(f *1000) / 10f;
+        return Math.round(f * 1000) / 10f;
     }
 
     void doSendFeedback(float coeff) {
@@ -696,7 +701,7 @@ public class Control {
 
             float value;
 
-            for (int b = DELTA_IDX; b < GAMMA_IDX; b++) {
+            for (int b = DELTA_IDX; b <= GAMMA_IDX; b++) {
 
                 value = bandValues[c][b];
 
