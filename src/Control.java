@@ -114,6 +114,14 @@ public class Control {
     RunMode runMode = RunMode.PreBaseline;
     int[][] cuttOffCounts;
 
+    private long sessionStartTime =0;
+    private long rpStartTime = 0;
+    private long qualifyStartTime = 0;
+    private float lastReward = 0;
+
+    private long qualifyDuration = 500;
+    long rpDuration = 500;
+
     static {
 
         System.setProperty("java.util.logging.SimpleFormatter.format", "%1$tF %1$tT %4$s %2$s(): %5$s%6$s%n");
@@ -131,7 +139,6 @@ public class Control {
         });
 
         gui = g;
-        // initState();
     }
 
     private void initNetworking() {
@@ -216,6 +223,12 @@ public class Control {
         currNumConsecQualifiers = 0;
         rewardCount = 0;
         rewardAggregate = 0;
+
+        sessionStartTime = System.currentTimeMillis();
+
+        rpStartTime = 0;
+        qualifyStartTime = 0;
+        lastReward = 0;
 
         bandValues = new float[numChannels][NUM_BANDS];
         bandEWMAs = new float[numChannels][NUM_BANDS];
@@ -336,7 +349,7 @@ public class Control {
 
         // do reward first to attentuate feedback delay
         if (runMode.equals(RunMode.Feedback)) {
-            doFeedback();
+            calcFeedback();
         }
 
         gui.doReporting();
@@ -354,13 +367,13 @@ public class Control {
         }
 
         StringBuilder sb = new StringBuilder();
-        
-        getValue(preBaselineMeans, sb);
-        getValue(fBMeans, sb);
-        getValue(postBaselineMeans, sb);
+
+        appendValues(preBaselineMeans, sb);
+        appendValues(fBMeans, sb);
+        appendValues(postBaselineMeans, sb);
 
         sb.append("\n");
-        
+
         try {
             // fileWriter.write(sb.toString());
             System.out.println(sb.toString());
@@ -370,16 +383,17 @@ public class Control {
 
     }
 
-    private void getValue(float[][] table, StringBuilder sb) {
+    private void appendValues(float[][] table, StringBuilder sb) {
 
         for (int c = 0; c < numChannels; c++) {
 
             for (int b = DELTA_IDX; b <= GAMMA_IDX; b++) {
 
                 sb.append(table[c][b]);
+                
                 if (b < GAMMA_IDX) {
                     sb.append(",");
-                } 
+                }
             }
             sb.append("\n");
         }
@@ -440,6 +454,7 @@ public class Control {
         // simplest case
         if (!isDifferentialMode()) {
 
+            // target matches
             if (channel == targetChannel && band == targetBand) {
 
                 return getTargetCoeff(value) > 0;
@@ -452,7 +467,7 @@ public class Control {
                 return getDifferentialCoeff() > 0;
             }
         }
-        // inhibit case
+        // now check for inhibit
         for (int i = 0; i < inhibitChannels.length; i++) {
 
             if (channel == inhibitChannels[i] && band == inhibitBands[i]) {
@@ -545,36 +560,84 @@ public class Control {
      * ln(x / y) = ln(x) - ln(y) ~= % change from x -> y
      * 
      */
-    void doFeedback() {
+    void calcFeedback() {
+
+        long now = System.currentTimeMillis();
+
+        // are we in RP?
+        if (rpStartTime > 0) {
+
+            // still in RP? If so, resend previous reward
+            if (now - rpStartTime < rpDuration) {
+                this.sendFeedback(lastReward);
+                return;
+            }
+            // RP has now elapsed
+            rpStartTime = 0;
+            qualifyStartTime = 0;
+        }
 
         // get the magic number
         float coeff = getTargetCoeff();
 
         // check the sign and inhibit conditions
-        boolean qualify = (coeff > 0 && doesInhibitQualify());
+        boolean qualify = coeff > 0 && doesInhibitQualify();
 
-        // check the value
         if (!qualify) {
 
-            // reset in case last iteration qualified
+            // reset stat
             currNumConsecQualifiers = 0;
 
-            // send new state ()
-            doSendFeedback(Math.max(coeff, -1f));
+            // reset clock on sustained qualifying
+            qualifyStartTime = 0;
+
+            // send negative feedback
+            sendFeedback(Math.max(coeff, -1f));
             return;
 
         }
 
-        // increment
+        // increment stat
         currNumConsecQualifiers++;
 
-        // wait for more qualifiers
-        if (currNumConsecQualifiers < minNumConsecQualifiers) {
+        // start the clock
+        if (qualifyStartTime == 0) {
+            qualifyStartTime = now;
             return;
         }
 
-        // count this reward
-        this.rewardCount++;
+        // wait longer
+        if (now - qualifyStartTime < qualifyDuration) {
+            return;
+        }
+
+        // qualifying sustain time satisfied
+        rewardCount++;
+
+        // start RP clock
+        rpStartTime = now;
+
+        // throttle the fb to maximum of 100%
+        float fb = Math.min(coeff, 1f);
+
+        // send the value over UDP
+        sendFeedback(fb);
+
+        // during RP, lastReward will be sent
+        lastReward = fb;
+
+        // keep track of reward quantity
+        rewardAggregate += fb;
+
+    }
+
+    /**
+     * Deprecated way of rewarding sustained feedback
+     * 
+     * @param coeff
+     * @return
+     */
+    float applyBonus(float coeff) {
 
         // maximum bonus differential
         int bonusDiff = Math.min(currNumConsecQualifiers - minNumConsecQualifiers, MAX_BONUS_DIFF);
@@ -584,20 +647,14 @@ public class Control {
 
         float fb = coeff * bonus;
 
-        // maximum 100%
-        fb = Math.min(fb, 1f);
-
-        // send the value over UDP
-        doSendFeedback(fb);
-
-        // keep track of reward quantity
-        rewardAggregate += fb;
-
+        return fb;
     }
 
     int getRewardRate() {
 
-        return (int) (rewardCount / ((float) recordCount) * ROUND_FACTOR);
+        long elapsed = (System.currentTimeMillis() - sessionStartTime)/(qualifyDuration + rpDuration);
+        
+        return elapsed < 1 ? 0 : (int) ((rewardCount / (float)elapsed) * ROUND_FACTOR);
 
     }
 
@@ -614,7 +671,7 @@ public class Control {
         return Math.round(f * 1000) / 10f;
     }
 
-    void doSendFeedback(float coeff) {
+    void sendFeedback(float coeff) {
 
         // convert to percent and truncate
         int fb = Math.round(coeff * ROUND_FACTOR);
@@ -686,12 +743,8 @@ public class Control {
 
     }
 
-    // avg -= avg / N;
-    // avg += new_sample / N;
-    // EMA: oldValue + alpha * (value - oldValue);
-    // EWMA:(alpha * newValue) + (1 - alpha) * prevValue;
     /**
-     * EWMA(t) = a * x(t) + (1-a) * EWMA(t-1) Can also have a time window (.5s)
+     * EWMA(t) = a * x(t) + (1-a) * EWMA(t-1)
      */
     void processData() {
 
@@ -731,5 +784,23 @@ public class Control {
             first = false;
         }
     } // method
+
+    public long getQualifyDuration() {
+        return qualifyDuration;
+    }
+
+    public void setQualifyDuration(long qd) {
+        
+        this.qualifyDuration = qd;
+    }
+    
+    public long getRPDuration() {
+        return rpDuration;
+    }
+
+    public void setRPDuration(long rpd) {
+        
+        this.rpDuration = rpd;
+    }
 
 } // class

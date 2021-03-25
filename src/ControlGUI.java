@@ -97,14 +97,19 @@ public class ControlGUI {
 
         startTimestamp = System.currentTimeMillis();
 
-        updateStatLabels(0);
+        updateDataStatLabels(0);
+        updateRewardStatLabels();
 
     }
 
-    private void updateStatLabels(int dr) {
+    private void updateDataStatLabels(int dr) {
 
         dataRate.setText(String.valueOf(dr));
         numCutoffVals.setText(String.valueOf(control.getCuttoffRate()));
+    }
+
+    private void updateRewardStatLabels() {
+
         effRewardRate.setText(String.valueOf(control.getRewardRate()));
         avgRewardAmt.setText(String.valueOf(control.getRewardAmt()));
 
@@ -258,32 +263,56 @@ public class ControlGUI {
         gbc.gridx++;
         panel.add(cspinner, gbc);
 
-        JLabel sustainLabel = new JLabel("Min. # Consecutive Qualifying Samples:");
+        JLabel sustainLabel = new JLabel("Criteria Sustain Duration (ms):");
 
-        JSpinner sspinner = new JSpinner(new SpinnerNumberModel((int) control.minNumConsecQualifiers, 1, 50, 1));
+        JSpinner sspinner = new JSpinner(new SpinnerNumberModel((int) control.getQualifyDuration(), 0, 1000, 100));
 
         sspinner.setPreferredSize(
-                new Dimension(sspinner.getPreferredSize().width - 5, sspinner.getPreferredSize().height));
+                new Dimension(sspinner.getPreferredSize().width - 25, sspinner.getPreferredSize().height));
         sspinner.addChangeListener(new ChangeListener() {
 
             @Override
             public void stateChanged(ChangeEvent e) {
-                control.minNumConsecQualifiers = (Integer) sspinner.getValue();
+                control.setQualifyDuration((Integer) sspinner.getValue());
             }
 
         });
 
         gbc.gridx++;
+
         gbc.gridwidth = 3;
         panel.add(sustainLabel, gbc);
+        gbc.gridx+= gbc.gridwidth;
 
         gbc.gridwidth = 1;
-
-        gbc.gridx = 5;
         panel.add(sspinner, gbc);
 
         gbc.gridy++;
-        gbc.gridx = 0;
+
+        JLabel rpLabel = new JLabel("Refractory Period Duration (ms):");
+
+        JSpinner rpspinner = new JSpinner(new SpinnerNumberModel((int) control.getRPDuration(), 0, 1000, 100));
+
+        rpspinner.setPreferredSize(
+                new Dimension(rpspinner.getPreferredSize().width - 25, rpspinner.getPreferredSize().height));
+        rpspinner.addChangeListener(new ChangeListener() {
+
+            @Override
+            public void stateChanged(ChangeEvent e) {
+                control.setRPDuration((Integer) rpspinner.getValue());
+            }
+
+        });
+
+        gbc.gridx = 2;
+        gbc.gridwidth = 3;
+        panel.add(rpLabel, gbc);
+
+        gbc.gridwidth = 1;
+        gbc.gridx = 5;
+        panel.add(rpspinner, gbc);
+
+        gbc.gridy++;
 
         JComponent[] comps = getTargetComponents();
 
@@ -675,7 +704,6 @@ public class ControlGUI {
         setRunStatus(Control.STOPPED);
         dataRate.setText(String.valueOf("0"));
 
-
         // configuration tab
         cspinner.setEnabled(true);
         ipWidget.setEnabled(true);
@@ -719,11 +747,7 @@ public class ControlGUI {
 
         int dataRate = Math.round((rc - lastRecordCount) / timeDelta);
 
-        updateStatLabels(dataRate);
-
-        // update after the UI
-        lastRecordCount = rc;
-        lastReportTime = now;
+        updateDataStatLabels(dataRate);
 
         switch (control.runMode) {
 
@@ -734,6 +758,7 @@ public class ControlGUI {
         case Feedback:
             // during active feedback, we use ewma model
             ewmaDataModel.fireTableDataChanged();
+            updateRewardStatLabels();
             break;
         case PostBaseline:
             control.calcMeans();
@@ -741,6 +766,9 @@ public class ControlGUI {
             break;
 
         }
+        // update after the UI
+        lastRecordCount = rc;
+        lastReportTime = now;
 
     }
 
