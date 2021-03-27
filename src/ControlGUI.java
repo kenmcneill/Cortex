@@ -4,6 +4,7 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.File;
 import java.util.Vector;
 
 import javax.swing.BorderFactory;
@@ -22,12 +23,16 @@ import javax.swing.JTable;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.DefaultTableCellRenderer;
 
 /**
  * ControlGUI
  */
 public class ControlGUI {
+
+    private static final String CSV = "csv";
+    protected static final String DOTCSV = ".csv";
 
     private static final float MS_PER_SEC = 1000f;
 
@@ -119,13 +124,13 @@ public class ControlGUI {
 
         switch (stat) {
 
-            case Control.RUNNING:
-                resetState();
-                break;
-        
-            case Control.TIMED_OUT:
-                dataRate.setText("0");
-                break;
+        case Control.RUNNING:
+            resetState();
+            break;
+
+        case Control.TIMED_OUT:
+            dataRate.setText("0");
+            break;
         }
         runStatusLabel.setText(RUNSTATUS[stat]);
     }
@@ -163,8 +168,6 @@ public class ControlGUI {
         return spinner;
     }
 
-    
-
     private JPanel getDataTab() {
 
         ewmaDataModel = new ChannelBandDataModel.EWMADataModel(control);
@@ -184,7 +187,7 @@ public class ControlGUI {
 
         JLabel label = new JLabel("Pre-Baseline Means:");
 
-        gbc.gridy=1;
+        gbc.gridy = 1;
         panel.add(label, gbc);
 
         prebaselineTable = new JTable(new ChannelBandDataModel(control));
@@ -282,7 +285,7 @@ public class ControlGUI {
 
         gbc.gridwidth = 3;
         panel.add(sustainLabel, gbc);
-        gbc.gridx+= gbc.gridwidth;
+        gbc.gridx += gbc.gridwidth;
 
         gbc.gridwidth = 1;
         panel.add(sspinner, gbc);
@@ -547,14 +550,39 @@ public class ControlGUI {
         saveButton = new JButton("Save");
         saveButton.setEnabled(false);
 
-        saveButton.addActionListener(new ActionListener(){
+        saveButton.addActionListener(new ActionListener() {
 
             @Override
             public void actionPerformed(ActionEvent e) {
+
                 JFileChooser chooser = new JFileChooser();
-                chooser.showSaveDialog(window);
+                FileNameExtensionFilter filter = new FileNameExtensionFilter("Comma-separated values", CSV);
+                chooser.setFileFilter(filter);
+
+                int result = chooser.showSaveDialog(window);
+
+                if (result != JFileChooser.APPROVE_OPTION) {
+                    return;
+                }
+
+                File file = chooser.getSelectedFile();
+
+                if (!file.getPath().endsWith(DOTCSV)) {
+                    file = new File(file.getPath() + DOTCSV);
+                }
+                if (file.exists()) {
+
+                    int o = JOptionPane.showConfirmDialog(chooser, "Overwrite file: " + file.getName() + " ?",
+                            "Confirm Action", JOptionPane.OK_CANCEL_OPTION);
+
+                    if (o == JOptionPane.CANCEL_OPTION) {
+                        System.out.println("File save aborted.");
+                        return;
+                    }
+                }
+                control.saveData(file);
             }
-            
+
         });
 
         JPanel panel = new JPanel();

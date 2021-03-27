@@ -18,11 +18,10 @@ public class RocketParadigm extends FBParadigm {
 
   private AudioNode thrustAudio;
   private long lastVolumeChange;
-  
-    RocketParadigm() {
-        super();
-    }
 
+  RocketParadigm() {
+    super();
+  }
 
   void initParadigm() {
 
@@ -52,7 +51,7 @@ public class RocketParadigm extends FBParadigm {
   void updateParadigm(long now) {
 
     rocketNode.move(0, THRUST_COEFF * rewardEMWA, 0);
-
+ 
     if (now - lastVolumeChange < 250) {
       return;
     }
@@ -111,6 +110,5 @@ public class RocketParadigm extends FBParadigm {
 
     rocketNode.attachChild(blastEffect);
   }
-
 
 }

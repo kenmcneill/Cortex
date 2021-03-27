@@ -356,36 +356,48 @@ public class Control {
 
     }
 
-    void saveData(String filename) {
+    void saveData(File file) {
 
         FileWriter fileWriter = null;
 
         try {
-            fileWriter = new FileWriter("logs/session-data-" + new Date() + ".txt");
+            fileWriter = new FileWriter(file);
         } catch (IOException e1) {
             e1.printStackTrace();
         }
 
         StringBuilder sb = new StringBuilder();
 
-        appendValues(preBaselineMeans, sb);
-        appendValues(fBMeans, sb);
-        appendValues(postBaselineMeans, sb);
-
+        sb.append("Dataset,Channel,Delta,Theta,Alpha,Beta,Gamma");
         sb.append("\n");
 
+        appendValues("PreBaseline", preBaselineMeans, sb);
+
+        appendValues("Feedback",fBMeans, sb);
+
+        appendValues("PostBaseline", postBaselineMeans, sb);
+
         try {
-            // fileWriter.write(sb.toString());
-            System.out.println(sb.toString());
+            fileWriter.write(sb.toString());
+            fileWriter.close();
         } catch (Exception e) {
             e.printStackTrace();
         }
 
     }
 
-    private void appendValues(float[][] table, StringBuilder sb) {
+    private void appendValues(String type, float[][] table, StringBuilder sb) {
+
+        if (table == null) {
+            return;
+        }
 
         for (int c = 0; c < numChannels; c++) {
+
+            sb.append(type);
+            sb.append(",");
+            sb.append(String.valueOf(c+1));
+            sb.append(",");
 
             for (int b = DELTA_IDX; b <= GAMMA_IDX; b++) {
 

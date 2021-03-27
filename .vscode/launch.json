@@ -4,20 +4,54 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-
+        {
+            "type": "java",
+            "name": "Launch TestMultiPostWater",
+            "request": "launch",
+            "mainClass": "TestMultiPostWater",
+            "projectName": "Cortex_aff4d85a"
+        },
+        {
+            "type": "java",
+            "name": "Launch TestPostWater",
+            "request": "launch",
+            "mainClass": "TestPostWater",
+            "projectName": "Cortex_aff4d85a"
+        },
+        {
+            "type": "java",
+            "name": "Launch TerrainTest",
+            "request": "launch",
+            "mainClass": "TerrainTest",
+            "projectName": "Cortex_aff4d85a"
+        },
+        {
+            "type": "java",
+            "name": "Launch TestSimpleWater",
+            "request": "launch",
+            "mainClass": "TestSimpleWater",
+            "projectName": "Cortex_aff4d85a"
+        },
+        {
+            "type": "java",
+            "name": "Launch TestSceneWater",
+            "request": "launch",
+            "mainClass": "TestSceneWater",
+            "projectName": "Cortex_aff4d85a"
+        },
         {
             "type": "java",
             "name": "Launch ControlGUI",
             "request": "launch",
             "mainClass": "ControlGUI",
-            "projectName": "Cortex_aff4d85a",
+            "projectName": "Cortex_aff4d85a"
         },
         {
             "type": "java",
             "name": "Launch FBParadigm",
             "request": "launch",
             "mainClass": "FBParadigm",
-            "projectName": "Cortex_aff4d85a",
+            "projectName": "Cortex_aff4d85a"
         },
         {
             "type": "java",
