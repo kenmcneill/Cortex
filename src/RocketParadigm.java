@@ -1,7 +1,9 @@
 import com.jme3.audio.AudioData.DataType;
 import com.jme3.audio.AudioNode;
+import com.jme3.audio.LowPassFilter;
 import com.jme3.effect.ParticleEmitter;
 import com.jme3.effect.ParticleMesh.Type;
+import com.jme3.light.DirectionalLight;
 import com.jme3.material.Material;
 import com.jme3.math.ColorRGBA;
 import com.jme3.math.Vector3f;
@@ -10,14 +12,28 @@ import com.jme3.scene.Spatial;
 
 public class RocketParadigm extends FBParadigm {
 
+  private static final int LOW = 0;
+  private static final int MED = 1;
+  private static final int HI = 2;
+  private static final float thresholdY = 4.1f;
+  private float startingY = -3.7f;
   private Spatial rocket;
   private ParticleEmitter blastEffect;
   private Node rocketNode;
 
-  private static final float THRUST_COEFF = .005f;
+  private static final float THRUST_COEFF = .005f; // .005f;
+
+  private int stage = 1;
+
+  float low = .2f;
+  float med = .6f;
+  float hi = 1.2f;
+
+  int lastLevel = 0;
+  int level = 0;
 
   private AudioNode thrustAudio;
-  private long lastVolumeChange;
+  private long lastChange;
 
   RocketParadigm() {
     super();
@@ -28,49 +44,103 @@ public class RocketParadigm extends FBParadigm {
     rocketNode = new Node();
     // top.scale(.6f);
     rocketNode.setLocalScale(.5f);
-    rocketNode.setLocalTranslation(0, -3.5f, 0);
+    rocketNode.setLocalTranslation(0, startingY, .5f);
 
     initRocketGraphics();
     initBlastEffect();
 
+    DirectionalLight dLight = new DirectionalLight();
+    dLight.getDirection().set(-.2f, -.5f, .9f);
+    rootNode.addLight(dLight);
+
     rocketNode.attachChild(rocket);
-    rocketNode.attachChild(blastEffect);
 
     rootNode.attachChild(rocketNode);
 
     thrustAudio = new AudioNode(assetManager, "assets/quietthrust.wav", DataType.Buffer);
-    thrustAudio.setLooping(true);
-    thrustAudio.setPositional(false);
-    thrustAudio.setVolume(.1f);
-    thrustAudio.play();
 
-    blastEffect.emitAllParticles();
+    thrustAudio.setPositional(false);
+    thrustAudio.setLooping(true);
+    thrustAudio.setVolume(.3f);
+    thrustAudio.setReverbEnabled(true);
+    thrustAudio.setDryFilter(new LowPassFilter(1, .4f));
 
   }
 
-  void updateParadigm(long now) {
+  @Override
+  void startParadigm() {
+
+    rocketNode.attachChild(blastEffect);
+    audioRenderer.playSource(thrustAudio);
+
+  }
+
+  @Override
+  void stopParadigm() {
+
+    blastEffect.removeFromParent();
+    audioRenderer.stopSource(thrustAudio);
+  }
+
+  void updateParadigm() {
+
+    if (rocketNode.getLocalTranslation().y >= thresholdY) {
+
+      switch (stage) {
+
+      case 1:
+        stage = 2;
+        setBackground("assets/clouds.jpg", "stage 2");
+        rocketNode.setLocalTranslation(0, -thresholdY, 0);
+        break;
+      case 2:
+        stage = 3;
+        setBackground("assets/earth-atmosphere.jpg", "stage 3");
+        rocketNode.setLocalTranslation(0, -thresholdY, -1);
+        break;
+      case 3:
+        stage = 4;
+        setBackground("assets/earth-outerspace.jpg", "stage 4");
+        rocketNode.setLocalTranslation(0, -thresholdY, -2);
+      case 4:
+        // finished
+      }
+
+      return;
+
+    }
 
     rocketNode.move(0, THRUST_COEFF * rewardEMWA, 0);
- 
-    if (now - lastVolumeChange < 250) {
+
+    long now = System.currentTimeMillis();
+
+    if (now - lastChange < 250) {
       return;
     }
 
-    float low = .3f;
-    float med = .6f;
-    float hi = 1f;
+    level = rewardEMWA <= low ? LOW : rewardEMWA <= med ? MED : HI;
 
-    if (rewardEMWA <= low) {
-      thrustAudio.setVolume(low);
-      blastEffect.setParticlesPerSec(15);
-    } else if (rewardEMWA <= med) {
-      thrustAudio.setVolume(med);
-      blastEffect.setParticlesPerSec(30);
-    } else {
-      thrustAudio.setVolume(hi);
-      blastEffect.setParticlesPerSec(45);
+    if (level == lastLevel) {
+      return;
     }
-    lastVolumeChange = now;
+
+    switch (level) {
+    case LOW:
+      blastEffect.setParticlesPerSec(10);
+      thrustAudio.setVolume(low);
+      break;
+
+    case MED:
+      blastEffect.setParticlesPerSec(20);
+      thrustAudio.setVolume(med);
+      break;
+    case HI:
+      blastEffect.setParticlesPerSec(40);
+      thrustAudio.setVolume(hi);
+
+    }
+    lastLevel = level;
+    lastChange = now;
   }
 
   void initRocketGraphics() {
@@ -88,7 +158,8 @@ public class RocketParadigm extends FBParadigm {
   }
 
   void initBlastEffect() {
-    blastEffect = new ParticleEmitter("blast", Type.Triangle, 15);
+
+    blastEffect = new ParticleEmitter("blast", Type.Triangle, 10);
 
     Material material = new Material(assetManager, "Common/MatDefs/Misc/Particle.j3md");
 
@@ -96,19 +167,16 @@ public class RocketParadigm extends FBParadigm {
     blastEffect.setMaterial(material);
     blastEffect.setImagesX(2);
     blastEffect.setImagesY(2); // 2x2 texture animation
-    blastEffect.setStartColor(new ColorRGBA(1f, 1f, 1f, 1f)); // white
-    blastEffect.setEndColor(new ColorRGBA(0f, 0f, 1f, .2f)); // blueish
-    blastEffect.getParticleInfluencer().setInitialVelocity(new Vector3f(0, -3, 0));
+    blastEffect.setStartColor(new ColorRGBA(1f, 0f, 0f, 1f)); // redish
+    blastEffect.setEndColor(new ColorRGBA(1f, 1f, 0f, .1f)); // transparent white
+    blastEffect.getParticleInfluencer().setInitialVelocity(new Vector3f(0, -2, 0));
     blastEffect.setStartSize(.4f);
-    blastEffect.setEndSize(0.1f);
+    blastEffect.setEndSize(0.05f);
     blastEffect.setGravity(0, 0, 0);
-    blastEffect.setLowLife(0.5f);
-    blastEffect.setHighLife(1f);
-    blastEffect.getParticleInfluencer().setVelocityVariation(0.2f);
+    blastEffect.setLowLife(0.3f);
+    blastEffect.setHighLife(.7f);
+    blastEffect.getParticleInfluencer().setVelocityVariation(0.3f);
 
-    blastEffect.setParticlesPerSec(15);
-
-    rocketNode.attachChild(blastEffect);
   }
 
 }

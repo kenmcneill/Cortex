@@ -43,7 +43,7 @@ public abstract class FBParadigm extends SimpleApplication {
   String rawString = null;
   byte[] rawData = null;
   float reward = .1f;
-  boolean first = true;
+  boolean started = false;
   private Geometry geo;
   private Random random = new Random();
   protected float rewardEMWA = 0;
@@ -115,10 +115,9 @@ public abstract class FBParadigm extends SimpleApplication {
   @Override
   public void simpleInitApp() {
 
-    logger.info("");
-
     assetManager.registerLocator(".", FileLocator.class);
-    setBackground("assets/FunkyBackground.png");
+    // setBackground("assets/FunkyBackground.png");
+    setBackground("assets/ground2sky.jpg", "initial");
     initHUDText();
     initRewardBar();
     inputManager.addMapping("Test Mode", new KeyTrigger(KeyInput.KEY_T));
@@ -169,9 +168,15 @@ public abstract class FBParadigm extends SimpleApplication {
 
   abstract void initParadigm();
 
-  abstract void updateParadigm(long now);
+  abstract void startParadigm();
 
-  private void updateRewardBar(long now) {
+  abstract void updateParadigm();
+
+  abstract void stopParadigm();
+
+  private void updateRewardBar() {
+
+    long now = System.currentTimeMillis();
 
     if (now - lastRewardBarUpdateTime < INTERVAL) {
       return;
@@ -186,6 +191,8 @@ public abstract class FBParadigm extends SimpleApplication {
     lastRewardBarUpdateTime = now;
   }
 
+  int timeouts = 0;
+
   @Override
   public void simpleUpdate(float tpf) {
 
@@ -193,32 +200,41 @@ public abstract class FBParadigm extends SimpleApplication {
 
       // waiting...
       if (!receiveUDP()) {
+        
+        timeouts++;
+        
+        if (started && timeouts > 3) {
+          System.out.println("stopping...");
+          stopParadigm();
+          started = false;
+        }
+
         return;
       }
     }
 
     // get started!
-    if (first) {
+    if (!started) {
       hudText.removeFromParent();
       getReward();
       rewardEMWA = reward;
-      first = false;
+      startParadigm();
+      started = true;
       return;
     }
 
     getReward();
     calcEWMA();
 
-    long now = System.currentTimeMillis();
-    updateRewardBar(now);
-    updateParadigm(now);
+    updateRewardBar();
+    updateParadigm();
 
   }
 
   private float calcRewardTest() {
 
     // random * STD + MEAN
-    int i = Math.round((float) random.nextGaussian() * 30 + 20f);
+    int i = Math.round((float) random.nextGaussian() * 40 + 50f);
 
     return i / 100f;
 
@@ -241,9 +257,9 @@ public abstract class FBParadigm extends SimpleApplication {
 
   }
 
-  void setBackground(String assetPath) {
+  void setBackground(String assetPath, String name) {
 
-    Picture pic = new Picture("backgroundPic");
+    Picture pic = new Picture(name);
 
     pic.setImage(assetManager, assetPath, false);
 
@@ -266,8 +282,6 @@ public abstract class FBParadigm extends SimpleApplication {
 
   void initUDP() {
 
-    logger.info("");
-
     try {
       socket = new DatagramSocket(PORT, inet);
       socket.setSoTimeout(20);
@@ -282,6 +296,7 @@ public abstract class FBParadigm extends SimpleApplication {
 
     try {
       socket.receive(packet);
+      timeouts = 0;
       return true;
     } catch (SocketTimeoutException e) {
       return false;

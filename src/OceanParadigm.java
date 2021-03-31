@@ -1,42 +1,6 @@
-/*
- * Copyright (c) 2009-2021 jMonkeyEngine
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- * * Redistributions of source code must retain the above copyright
- *   notice, this list of conditions and the following disclaimer.
- *
- * * Redistributions in binary form must reproduce the above copyright
- *   notice, this list of conditions and the following disclaimer in the
- *   documentation and/or other materials provided with the distribution.
- *
- * * Neither the name of 'jMonkeyEngine' nor the names of its contributors
- *   may be used to endorse or promote products derived from this software
- *   without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
- * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
- * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
- * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
- * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
- * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
-
-import com.jme3.app.SimpleApplication;
 import com.jme3.audio.AudioData.DataType;
 import com.jme3.audio.AudioNode;
 import com.jme3.audio.LowPassFilter;
-import com.jme3.input.KeyInput;
-import com.jme3.input.controls.ActionListener;
-import com.jme3.input.controls.KeyTrigger;
 import com.jme3.light.AmbientLight;
 import com.jme3.light.DirectionalLight;
 import com.jme3.material.Material;
@@ -48,6 +12,7 @@ import com.jme3.post.FilterPostProcessor;
 import com.jme3.post.filters.BloomFilter;
 import com.jme3.post.filters.DepthOfFieldFilter;
 import com.jme3.post.filters.FXAAFilter;
+import com.jme3.post.filters.FogFilter;
 import com.jme3.post.filters.LightScatteringFilter;
 import com.jme3.renderer.queue.RenderQueue.ShadowMode;
 import com.jme3.scene.Node;
@@ -67,7 +32,7 @@ import com.jme3.water.WaterFilter;
  *
  * @author normenhansen
  */
-public class OceanParadigm extends SimpleApplication {
+public class OceanParadigm extends FBParadigm {
 
     final private Vector3f lightDir = new Vector3f(-4.9236743f, -1.27054665f, 5.896916f);
     private WaterFilter water;
@@ -76,140 +41,111 @@ public class OceanParadigm extends SimpleApplication {
     private AudioNode waves;
     final private LowPassFilter aboveWaterAudioFilter = new LowPassFilter(1, 1);
 
+    // This part is to emulate tides, slightly varrying the height of the water
+    private float time = 0.0f;
+    private float waterHeight = 0.0f;
+    final private float initialWaterHeight = 90f;// 0.8f;
+    private boolean uw = false;
+
     public static void main(String[] args) {
         OceanParadigm app = new OceanParadigm();
         app.start();
     }
 
     @Override
-    public void simpleInitApp() {
+    public void initParadigm() {
 
         setDisplayFps(false);
         setDisplayStatView(false);
-        
+
         Node mainScene = new Node("Main Scene");
         rootNode.attachChild(mainScene);
 
         createTerrain(mainScene);
+
         DirectionalLight sun = new DirectionalLight();
         sun.setDirection(lightDir);
         sun.setColor(ColorRGBA.White.clone().multLocal(1f));
         mainScene.addLight(sun);
-        
+
         AmbientLight al = new AmbientLight();
         al.setColor(ColorRGBA.White.mult(.5f));
         mainScene.addLight(al);
-        
-        flyCam.setMoveSpeed(50);
 
         cam.setLocation(new Vector3f(-370.31592f, 182.04016f, 196.81192f));
         cam.setRotation(new Quaternion(0.015302252f, 0.9304095f, -0.039101653f, 0.3641086f));
 
-        Spatial sky = SkyFactory.createSky(assetManager, 
-                "Scenes/Beach/FullskiesSunset0068.dds", EnvMapType.CubeMap);
+        Spatial sky = SkyFactory.createSky(assetManager, "Scenes/Beach/FullskiesSunset0068.dds", EnvMapType.CubeMap);
         // sky.setLocalScale(350);
 
         mainScene.attachChild(sky);
         cam.setFrustumFar(4000);
 
-        //Water Filter
-        water = new WaterFilter(rootNode, lightDir);
+        // Water Filter
+        water = new WaterFilter(mainScene, lightDir);
 
-        water.setWaterTransparency(0.02f);
-
-        water.setFoamIntensity(0.8f);        
+        water.setWaterTransparency(0.01f);
+        water.setFoamIntensity(0.8f);
         water.setFoamHardness(.5f);
         water.setFoamExistence(new Vector3f(2f, 8f, 1f));
-        water.setReflectionDisplace(50);
-        water.setSpeed(.6f); // .6f
-        // water.setRefractionConstant(0.25f);
-        // water.setColorExtinction(new Vector3f(30, 50, 70));
-        // water.setCausticsIntensity(0.4f);        
-        water.setWaveScale(0.01f); // .001f
-        water.setMaxAmplitude(3f); // 3f
+        water.setSpeed(0); // .6f
+        water.setRefractionConstant(0.1f);
+        water.setWaveScale(0.01f); // .01f
+        water.setMaxAmplitude(0f); // 3f
         water.setFoamTexture((Texture2D) assetManager.loadTexture("Common/MatDefs/Water/Textures/foam2.jpg"));
-        water.setRefractionStrength(0.2f);
-        water.setWaterHeight(0);
+        water.setRefractionStrength(0f);
+        water.setWaterHeight(90);
 
         water.getWindDirection().set(.1f, -1f);
-        
-        //Bloom Filter
-        BloomFilter bloom = new BloomFilter();        
+
+        // Bloom Filter
+        BloomFilter bloom = new BloomFilter();
         bloom.setExposurePower(55);
         bloom.setBloomIntensity(.5f);
-        
-        //Light Scattering Filter
+
+        // Light Scattering Filter
         LightScatteringFilter lsf = new LightScatteringFilter(lightDir.mult(-300));
-        lsf.setLightDensity(0.5f);   
-        
-        //Depth of field Filter
+        lsf.setLightDensity(0.5f);
+
+        // Depth of field Filter
         DepthOfFieldFilter dof = new DepthOfFieldFilter();
-        dof.setFocusDistance(0);
+        dof.setFocusDistance(50);
         dof.setFocusRange(100);
-        
+
+        FogFilter fog = new FogFilter();
+        fog.setFogColor(new ColorRGBA(0.9f, 0.9f, 0.9f, 1.0f));
+        fog.setFogDistance(155);
+        fog.setFogDensity(1.0f);
+
         FilterPostProcessor fpp = new FilterPostProcessor(assetManager);
-        
+
         fpp.addFilter(water);
         fpp.addFilter(bloom);
-        fpp.addFilter(dof);
-        fpp.addFilter(lsf);
+        // fpp.addFilter(lsf);
+        // fpp.addFilter(dof);
+        // fpp.addFilter(fog);
+
         fpp.addFilter(new FXAAFilter());
-        
-//      fpp.addFilter(new TranslucentBucketFilter());
+
         int numSamples = getContext().getSettings().getSamples();
         if (numSamples > 0) {
             fpp.setNumSamples(numSamples);
         }
 
-        
         uw = cam.getLocation().y < waterHeight;
 
-        waves = new AudioNode(assetManager, "Sound/Environment/Ocean Waves.ogg",
-                DataType.Buffer);
+        waves = new AudioNode(assetManager, "Sound/Environment/Ocean Waves.ogg", DataType.Buffer);
         waves.setLooping(true);
         waves.setReverbEnabled(true);
-        if (uw) {
-            waves.setDryFilter(new LowPassFilter(0.5f, 0.1f));
-        } else {
-            waves.setDryFilter(aboveWaterAudioFilter);
-        }
-        audioRenderer.playSource(waves);
-        //  
+        waves.setDryFilter(aboveWaterAudioFilter);
+
+        //
         viewPort.addProcessor(fpp);
 
-        inputManager.addListener(new ActionListener() {
-            @Override
-            public void onAction(String name, boolean isPressed, float tpf) {
-                if (isPressed) {
-                    if (name.equals("foam1")) {
-                        water.setFoamTexture((Texture2D) assetManager.loadTexture("Common/MatDefs/Water/Textures/foam.jpg"));
-                    }
-                    if (name.equals("foam2")) {
-                        water.setFoamTexture((Texture2D) assetManager.loadTexture("Common/MatDefs/Water/Textures/foam2.jpg"));
-                    }
-                    if (name.equals("foam3")) {
-                        water.setFoamTexture((Texture2D) assetManager.loadTexture("Common/MatDefs/Water/Textures/foam3.jpg"));
-                    }
-
-                    if (name.equals("upRM")) {
-                        water.setReflectionMapSize(Math.min(water.getReflectionMapSize() * 2, 4096));
-                        System.out.println("Reflection map size : " + water.getReflectionMapSize());
-                    }
-                    if (name.equals("downRM")) {
-                        water.setReflectionMapSize(Math.max(water.getReflectionMapSize() / 2, 32));
-                        System.out.println("Reflection map size : " + water.getReflectionMapSize());
-                    }
-                }
-            }
-        }, "foam1", "foam2", "foam3", "upRM", "downRM");
-        inputManager.addMapping("foam1", new KeyTrigger(KeyInput.KEY_1));
-        inputManager.addMapping("foam2", new KeyTrigger(KeyInput.KEY_2));
-        inputManager.addMapping("foam3", new KeyTrigger(KeyInput.KEY_3));
-        inputManager.addMapping("upRM", new KeyTrigger(KeyInput.KEY_PGUP));
-        inputManager.addMapping("downRM", new KeyTrigger(KeyInput.KEY_PGDN));
     }
 
     private void createTerrain(Node rootNode) {
+
         matRock = new Material(assetManager, "Common/MatDefs/Terrain/TerrainLighting.j3md");
         matRock.setBoolean("useTriPlanarMapping", false);
         matRock.setBoolean("WardIso", true);
@@ -254,30 +190,27 @@ public class OceanParadigm extends SimpleApplication {
         rootNode.attachChild(terrain);
 
     }
-    //This part is to emulate tides, slightly varrying the height of the water plane
-    private float time = 0.0f;
-    private float waterHeight = 0.0f;
-    final private float initialWaterHeight = 90f;//0.8f;
-    private boolean uw = false;
 
     @Override
-    public void simpleUpdate(float tpf) {
-        super.simpleUpdate(tpf);
-        //     box.updateGeometricState();
-        time += tpf;
+    public void updateParadigm() {
+
+        time += .02f;
         waterHeight = (float) Math.cos(((time * 0.6f) % FastMath.TWO_PI)) * 1.5f;
         water.setWaterHeight(initialWaterHeight + waterHeight);
-        if (water.isUnderWater() && !uw) {
 
-            waves.setDryFilter(new LowPassFilter(0.5f, 0.1f));
-            uw = true;
-        }
-        if (!water.isUnderWater() && uw) {
-            uw = false;
-            //waves.setReverbEnabled(false);
-            waves.setDryFilter(new LowPassFilter(1, 1f));
-            //waves.setDryFilter(new LowPassFilter(1,1f));
+    }
 
-        }
+    @Override
+    void startParadigm() {
+        audioRenderer.playSource(waves);
+        water.setSpeed(2f);
+        water.setMaxAmplitude(4f); // 3f
+    }
+
+    @Override
+    void stopParadigm() {
+        audioRenderer.stopSource(waves);
+        water.setSpeed(0f);
+        water.setMaxAmplitude(0f); // 3f
     }
 }

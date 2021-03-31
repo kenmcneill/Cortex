@@ -6,6 +6,13 @@
     "configurations": [
         {
             "type": "java",
+            "name": "Launch OceanParadigm",
+            "request": "launch",
+            "mainClass": "OceanParadigm",
+            "projectName": "Cortex_aff4d85a"
+        },
+        {
+            "type": "java",
             "name": "Launch TestMultiPostWater",
             "request": "launch",
             "mainClass": "TestMultiPostWater",
