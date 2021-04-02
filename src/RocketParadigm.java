@@ -1,4 +1,16 @@
 import com.jme3.audio.AudioData.DataType;
+
+import java.applet.AudioClip;
+import java.io.File;
+import java.io.IOException;
+
+import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.Clip;
+import javax.sound.sampled.FloatControl;
+import javax.sound.sampled.LineUnavailableException;
+import javax.sound.sampled.UnsupportedAudioFileException;
+
 import com.jme3.audio.AudioNode;
 import com.jme3.audio.LowPassFilter;
 import com.jme3.effect.ParticleEmitter;
@@ -34,6 +46,8 @@ public class RocketParadigm extends FBParadigm {
 
   private AudioNode thrustAudio;
   private long lastChange;
+  private AudioNode thrustAudio2;
+  private FloatControl gainControl;
 
   RocketParadigm() {
     super();
@@ -49,29 +63,28 @@ public class RocketParadigm extends FBParadigm {
     initRocketGraphics();
     initBlastEffect();
 
-    DirectionalLight dLight = new DirectionalLight();
-    dLight.getDirection().set(-.2f, -.5f, .9f);
-    rootNode.addLight(dLight);
-
     rocketNode.attachChild(rocket);
 
     rootNode.attachChild(rocketNode);
 
-    thrustAudio = new AudioNode(assetManager, "assets/quietthrust.wav", DataType.Buffer);
+    //DirectionalLight dLight = new DirectionalLight();
+    //dLight.getDirection().set(-.2f, -.5f, .9f);
+    // rootNode.addLight(dLight);
 
+    thrustAudio = new AudioNode(assetManager, "assets/quietthrust.wav", DataType.Buffer);
+    
     thrustAudio.setPositional(false);
     thrustAudio.setLooping(true);
-    thrustAudio.setVolume(.3f);
+    thrustAudio.setVolume(.2f);
     thrustAudio.setReverbEnabled(true);
-    thrustAudio.setDryFilter(new LowPassFilter(1, .4f));
-
+    
   }
 
   @Override
   void startParadigm() {
 
     rocketNode.attachChild(blastEffect);
-    audioRenderer.playSource(thrustAudio);
+    thrustAudio.play();
 
   }
 
@@ -79,7 +92,7 @@ public class RocketParadigm extends FBParadigm {
   void stopParadigm() {
 
     blastEffect.removeFromParent();
-    audioRenderer.stopSource(thrustAudio);
+    thrustAudio.stop();
   }
 
   void updateParadigm() {
@@ -114,7 +127,7 @@ public class RocketParadigm extends FBParadigm {
 
     long now = System.currentTimeMillis();
 
-    if (now - lastChange < 250) {
+    if (now - lastChange < 1000) {
       return;
     }
 

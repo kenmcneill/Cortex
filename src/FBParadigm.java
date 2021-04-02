@@ -86,9 +86,11 @@ public abstract class FBParadigm extends SimpleApplication {
 
     AppSettings settings = new AppSettings(true);
 
-    settings.put("Width", 1024);
+    // settings.put("Fullscreen", true);
 
-    settings.put("Height", 800);
+    settings.put("Width", 1200);
+
+    settings.put("Height", 1000);
 
     settings.put("Cortex", "Neurofeedback");
 

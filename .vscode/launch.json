@@ -6,6 +6,13 @@
     "configurations": [
         {
             "type": "java",
+            "name": "Launch JavaSound",
+            "request": "launch",
+            "mainClass": "JavaSound",
+            "projectName": "Cortex_aff4d85a"
+        },
+        {
+            "type": "java",
             "name": "Launch OceanParadigm",
             "request": "launch",
             "mainClass": "OceanParadigm",
