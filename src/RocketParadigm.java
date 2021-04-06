@@ -1,21 +1,10 @@
 import com.jme3.audio.AudioData.DataType;
-
-import java.applet.AudioClip;
-import java.io.File;
-import java.io.IOException;
-
-import javax.sound.sampled.AudioInputStream;
-import javax.sound.sampled.AudioSystem;
-import javax.sound.sampled.Clip;
-import javax.sound.sampled.FloatControl;
-import javax.sound.sampled.LineUnavailableException;
-import javax.sound.sampled.UnsupportedAudioFileException;
-
 import com.jme3.audio.AudioNode;
+import com.jme3.audio.Environment;
+import com.jme3.audio.Filter;
 import com.jme3.audio.LowPassFilter;
 import com.jme3.effect.ParticleEmitter;
 import com.jme3.effect.ParticleMesh.Type;
-import com.jme3.light.DirectionalLight;
 import com.jme3.material.Material;
 import com.jme3.math.ColorRGBA;
 import com.jme3.math.Vector3f;
@@ -24,9 +13,6 @@ import com.jme3.scene.Spatial;
 
 public class RocketParadigm extends FBParadigm {
 
-  private static final int LOW = 0;
-  private static final int MED = 1;
-  private static final int HI = 2;
   private static final float thresholdY = 4.1f;
   private float startingY = -3.7f;
   private Spatial rocket;
@@ -38,16 +24,14 @@ public class RocketParadigm extends FBParadigm {
   private int stage = 1;
 
   float low = .2f;
-  float med = .6f;
-  float hi = 1.2f;
+  float med = .5f;
+  float hi = 1f;
 
-  int lastLevel = 0;
-  int level = 0;
+  float lastLevel = 0;
+  float level = 0;
 
   private AudioNode thrustAudio;
   private long lastChange;
-  private AudioNode thrustAudio2;
-  private FloatControl gainControl;
 
   RocketParadigm() {
     super();
@@ -67,17 +51,17 @@ public class RocketParadigm extends FBParadigm {
 
     rootNode.attachChild(rocketNode);
 
-    //DirectionalLight dLight = new DirectionalLight();
-    //dLight.getDirection().set(-.2f, -.5f, .9f);
+    // DirectionalLight dLight = new DirectionalLight();
+    // dLight.getDirection().set(-.2f, -.5f, .9f);
     // rootNode.addLight(dLight);
 
-    thrustAudio = new AudioNode(assetManager, "assets/quietthrust.wav", DataType.Buffer);
-    
+    thrustAudio = new AudioNode(assetManager, "assets/quietthrust.ogg", DataType.Buffer);
+
     thrustAudio.setPositional(false);
     thrustAudio.setLooping(true);
-    thrustAudio.setVolume(.2f);
+    thrustAudio.setVolume(low);
     thrustAudio.setReverbEnabled(true);
-    
+    thrustAudio.setDryFilter(new LowPassFilter(1f, .5f));
   }
 
   @Override
@@ -125,35 +109,47 @@ public class RocketParadigm extends FBParadigm {
 
     rocketNode.move(0, THRUST_COEFF * rewardEMWA, 0);
 
-    long now = System.currentTimeMillis();
+    adjustFX();
 
-    if (now - lastChange < 1000) {
+  }
+
+  boolean volChangePending = false;
+  float volIncrement = .02f;
+  float volChangeTarget = 0;
+  int pps = 0;
+
+  void adjustFX() {
+
+    if (volChangePending) {
+
+      float volume = thrustAudio.getVolume();
+
+      if (volume < volChangeTarget) {
+        thrustAudio.setVolume(volume + volIncrement);
+      } else {
+        thrustAudio.setVolume(volume - volIncrement);
+      }
+      volChangePending = Math.abs(volume - volChangeTarget) > .001f;
       return;
     }
 
-    level = rewardEMWA <= low ? LOW : rewardEMWA <= med ? MED : HI;
+    if (System.currentTimeMillis() - lastChange < 200) {
+      return;
+    }
+
+    level = rewardEMWA <= low ? low : rewardEMWA <= med ? med : hi;
 
     if (level == lastLevel) {
       return;
     }
 
-    switch (level) {
-    case LOW:
-      blastEffect.setParticlesPerSec(10);
-      thrustAudio.setVolume(low);
-      break;
+    volChangeTarget = level;
+    volChangePending = true;
 
-    case MED:
-      blastEffect.setParticlesPerSec(20);
-      thrustAudio.setVolume(med);
-      break;
-    case HI:
-      blastEffect.setParticlesPerSec(40);
-      thrustAudio.setVolume(hi);
+    blastEffect.setParticlesPerSec(level * 40);
 
-    }
     lastLevel = level;
-    lastChange = now;
+    lastChange = System.currentTimeMillis();
   }
 
   void initRocketGraphics() {
@@ -181,7 +177,7 @@ public class RocketParadigm extends FBParadigm {
     blastEffect.setImagesX(2);
     blastEffect.setImagesY(2); // 2x2 texture animation
     blastEffect.setStartColor(new ColorRGBA(1f, 0f, 0f, 1f)); // redish
-    blastEffect.setEndColor(new ColorRGBA(1f, 1f, 0f, .1f)); // transparent white
+    blastEffect.setEndColor(new ColorRGBA(1f, 1f, 1f, .1f)); // transparent white
     blastEffect.getParticleInfluencer().setInitialVelocity(new Vector3f(0, -2, 0));
     blastEffect.setStartSize(.4f);
     blastEffect.setEndSize(0.05f);
