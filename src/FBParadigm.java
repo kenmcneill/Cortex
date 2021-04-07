@@ -11,6 +11,7 @@ import java.util.logging.Logger;
 import com.jme3.app.SimpleApplication;
 import com.jme3.app.state.AppState;
 import com.jme3.asset.plugins.FileLocator;
+import com.jme3.audio.AudioNode;
 import com.jme3.font.BitmapText;
 import com.jme3.input.KeyInput;
 import com.jme3.input.controls.ActionListener;
@@ -29,7 +30,7 @@ public abstract class FBParadigm extends SimpleApplication {
   private static final float _100F = 100f;
   private static final String COLOR = "Color";
 
-  private static float A = .75f;
+  private static float A = .90f;
   private static float ONEMINUS_A = 1f - A;
 
   static Logger logger = Logger.getLogger("cortex");
@@ -48,6 +49,12 @@ public abstract class FBParadigm extends SimpleApplication {
   private Random random = new Random();
   protected float rewardEMWA = 0;
   private long lastRewardBarUpdateTime = 0;
+
+  volatile boolean volChangePending = false;
+  float volIncrement = .02f;
+  float volChangeTarget = 0;
+
+  AudioNode audioNode;
 
   static {
     try {
@@ -145,7 +152,7 @@ public abstract class FBParadigm extends SimpleApplication {
     hudText.setSize(28); // font size
     hudText.setColor(ColorRGBA.Blue); // font color
     hudText.setText("Waiting for control..."); // the text
-    hudText.setLocalTranslation(settings.getWidth() / 3f, settings.getHeight() - 50, 0); // position
+    hudText.setLocalTranslation(settings.getWidth() / 3f, settings.getHeight() - 100, 0); // position
     guiNode.attachChild(hudText);
   }
 
@@ -156,7 +163,7 @@ public abstract class FBParadigm extends SimpleApplication {
     Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
     mat.setColor(COLOR, ColorRGBA.Gray);
     geo.setMaterial(mat);
-    geo.setLocalTranslation(20, settings.getHeight() - 100, 0);
+    geo.setLocalTranslation(20, settings.getHeight() - 150, 0);
     guiNode.attachChild(geo);
 
     quad = new Quad(30, 40);
@@ -164,7 +171,7 @@ public abstract class FBParadigm extends SimpleApplication {
     mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
     mat.setColor(COLOR, ColorRGBA.Green);
     geo.setMaterial(mat);
-    geo.setLocalTranslation(20, settings.getHeight() - 100, 0);
+    geo.setLocalTranslation(20, settings.getHeight() - 150, 0);
     guiNode.attachChild(geo);
   }
 
@@ -178,19 +185,17 @@ public abstract class FBParadigm extends SimpleApplication {
 
   private void updateRewardBar() {
 
-    long now = System.currentTimeMillis();
-
-    if (now - lastRewardBarUpdateTime < INTERVAL) {
+    if (System.currentTimeMillis() - lastRewardBarUpdateTime < INTERVAL) {
       return;
     }
 
-    geo.setLocalScale(1, 1 + rewardEMWA, 1);
+    geo.setLocalScale(1, 1 + reward, 1);
 
-    ColorRGBA c = rewardEMWA < 0f ? ColorRGBA.Red : rewardEMWA < .1f ? ColorRGBA.Yellow : ColorRGBA.Green;
+    ColorRGBA c = reward < 0f ? ColorRGBA.Red : reward < .1f ? ColorRGBA.Yellow : ColorRGBA.Green;
 
     geo.getMaterial().setColor(COLOR, c);
 
-    lastRewardBarUpdateTime = now;
+    lastRewardBarUpdateTime = System.currentTimeMillis();
   }
 
   int timeouts = 0;
@@ -202,9 +207,9 @@ public abstract class FBParadigm extends SimpleApplication {
 
       // waiting...
       if (!receiveUDP()) {
-        
+
         timeouts++;
-        
+
         if (started && timeouts > 3) {
           System.out.println("stopping...");
           stopParadigm();
@@ -226,34 +231,40 @@ public abstract class FBParadigm extends SimpleApplication {
     }
 
     getReward();
-    calcEWMA();
+    // calcEWMA();
 
     updateRewardBar();
     updateParadigm();
+    updateVolume();
 
   }
 
-  private float calcRewardTest() {
+  private int calcTestReward() {
 
     // random * STD + MEAN
-    int i = Math.round((float) random.nextGaussian() * 40 + 50f);
+    int i = Math.round((float) random.nextGaussian() *40f + 50f);
 
-    return i / 100f;
+    return Math.max(Math.min(100, i), -100);
 
   }
 
   private void getReward() {
 
+    int i = 0;
+
     if (testMode) {
-      reward = calcRewardTest();
-      return;
+      i = calcTestReward();
+    } else {
+      i = packet.getData()[0];
     }
 
-    reward = packet.getData()[0] / _100F;
+    // get -1f to 1f
+    reward = .1f * Math.round(i/10f);
 
   }
 
   private void calcEWMA() {
+
 
     rewardEMWA = .01f * Math.round(100 * ((A * reward) + (ONEMINUS_A * rewardEMWA)));
 
@@ -280,6 +291,35 @@ public abstract class FBParadigm extends SimpleApplication {
     viewPort.setClearFlags(false, true, true);
 
     pic.updateGeometricState();
+  }
+
+  public boolean setVolume(float targetVolume) {
+
+    if (volChangePending) {
+      System.out.println("vol change pending...");
+      return false;
+    }
+    
+    volChangeTarget = targetVolume;
+    volChangePending = true;
+    
+    return true;
+  }
+
+  private void updateVolume() {
+
+    if (!volChangePending) {
+      return;
+    }
+
+    float volume = audioNode.getVolume();
+
+    if (volume < volChangeTarget) {
+      audioNode.setVolume(volume + volIncrement);
+    } else {
+      audioNode.setVolume(Math.max(volume - volIncrement, 0));
+    }
+    volChangePending = Math.abs(volume - volChangeTarget) >= volIncrement;
   }
 
   void initUDP() {
