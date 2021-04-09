@@ -6,6 +6,7 @@ import com.jme3.audio.AudioNode;
 import com.jme3.audio.LowPassFilter;
 import com.jme3.effect.ParticleEmitter;
 import com.jme3.effect.ParticleMesh.Type;
+import com.jme3.light.DirectionalLight;
 import com.jme3.material.Material;
 import com.jme3.math.ColorRGBA;
 import com.jme3.math.Vector3f;
@@ -24,14 +25,22 @@ public class RocketParadigm extends FBParadigm {
   private static final float THRUST_COEFF = .005f; // .005f;
 
   private int stage = 1;
-  private long lastChange;
   Random random = new Random();
+
+  public static void main(String[] args) throws Exception {
+
+    RocketParadigm paradigm = new RocketParadigm();
+
+    paradigm.start();
+  }
 
   RocketParadigm() {
     super();
   }
 
   void initParadigm() {
+
+    setBackground("assets/ground2sky.jpg", "initial");
 
     rocketNode = new Node();
     // top.scale(.6f);
@@ -45,9 +54,9 @@ public class RocketParadigm extends FBParadigm {
 
     rootNode.attachChild(rocketNode);
 
-    // DirectionalLight dLight = new DirectionalLight();
-    // dLight.getDirection().set(-.2f, -.5f, .9f);
-    // rootNode.addLight(dLight);
+    DirectionalLight dLight = new DirectionalLight();
+    dLight.getDirection().set(5f, -.5f, 1f);
+    rootNode.addLight(dLight);
 
     audioNode = new AudioNode(assetManager, "assets/quietthrust.wav", DataType.Buffer);
 
@@ -73,7 +82,7 @@ public class RocketParadigm extends FBParadigm {
     audioNode.stop();
   }
 
-  void updateParadigm() {
+  void updateParadigm(boolean delayExpired) {
 
     if (rocketNode.getLocalTranslation().y >= thresholdY) {
 
@@ -96,35 +105,30 @@ public class RocketParadigm extends FBParadigm {
       case 4:
         // finished
       }
-
       return;
 
     }
 
     float shimmy = (float) random.nextGaussian();
-    
+
     rocketNode.move(shimmy * .002f, THRUST_COEFF * reward, 0f);
     rocketNode.rotate(0f, shimmy * .01f, 0f);
-    
-    updateFX();
+
+    if (delayExpired){
+      updateFX();
+    }
   }
 
   void updateFX() {
 
-    if (System.currentTimeMillis() - lastChange < 400) {
-      return;
-    }
-
     // vary the audio volume proportional to reward
-    // will have no effect if volume is still ramping from previous call
-    if (setVolume(reward > 0 ? reward * 1.1f : MIN_VOL)) {
-      // sync to blast exhaust effect proportional to reward
-      blastEffect.setStartSize(Math.max(reward * .4f, .2f));
-      blastEffect.emitAllParticles();
+    setVolume(reward > 0 ? reward * 1.1f : MIN_VOL);
 
-    }
-
-    lastChange = System.currentTimeMillis();
+    // sync to blast exhaust effect proportional to reward
+    blastEffect.setStartSize(Math.max(reward * .4f, .2f));
+    
+    // reset the effect
+    blastEffect.emitAllParticles();
   }
 
   void initRocketGraphics() {

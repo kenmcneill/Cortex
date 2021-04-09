@@ -6,6 +6,13 @@
     "configurations": [
         {
             "type": "java",
+            "name": "Launch RocketParadigm",
+            "request": "launch",
+            "mainClass": "RocketParadigm",
+            "projectName": "Cortex_aff4d85a"
+        },
+        {
+            "type": "java",
             "name": "Launch JavaSound",
             "request": "launch",
             "mainClass": "JavaSound",

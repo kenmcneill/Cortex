@@ -26,11 +26,11 @@ import com.jme3.ui.Picture;
 
 public abstract class FBParadigm extends SimpleApplication {
 
-  private static final int INTERVAL = 250;
+  private static final int INTERVAL = 500;
   private static final float _100F = 100f;
   private static final String COLOR = "Color";
 
-  private static float A = .90f;
+  private static float A = .75f;
   private static float ONEMINUS_A = 1f - A;
 
   static Logger logger = Logger.getLogger("cortex");
@@ -44,14 +44,16 @@ public abstract class FBParadigm extends SimpleApplication {
   String rawString = null;
   byte[] rawData = null;
   float reward = .1f;
+  private float lastReward;
+  private float rewardTarget;
+  private long lastIntervalTime;
+
   boolean started = false;
   private Geometry geo;
   private Random random = new Random();
   protected float rewardEMWA = 0;
-  private long lastRewardBarUpdateTime = 0;
 
-  volatile boolean volChangePending = false;
-  float volIncrement = .02f;
+  static float VOL_INC = .02f;
   float volChangeTarget = 0;
 
   AudioNode audioNode;
@@ -67,7 +69,7 @@ public abstract class FBParadigm extends SimpleApplication {
     }
   }
 
-  void setSmoothing(float s) {
+  void setEWMASmoothing(float s) {
 
     if (s > 1 || s < .1) {
       logger.warning("Smoothing must > .1 and < 1");
@@ -76,13 +78,6 @@ public abstract class FBParadigm extends SimpleApplication {
 
     A = s;
     ONEMINUS_A = 1f - A;
-  }
-
-  public static void main(String[] args) throws Exception {
-
-    RocketParadigm paradigm = new RocketParadigm();
-
-    paradigm.start();
   }
 
   FBParadigm() {
@@ -95,9 +90,9 @@ public abstract class FBParadigm extends SimpleApplication {
 
     // settings.put("Fullscreen", true);
 
-    settings.put("Width", 1200);
+    settings.put("Width", 1080);
 
-    settings.put("Height", 1000);
+    settings.put("Height", 800);
 
     settings.put("Cortex", "Neurofeedback");
 
@@ -126,20 +121,20 @@ public abstract class FBParadigm extends SimpleApplication {
 
     assetManager.registerLocator(".", FileLocator.class);
     // setBackground("assets/FunkyBackground.png");
-    setBackground("assets/ground2sky.jpg", "initial");
+    // setBackground("assets/ground2sky.jpg", "initial");
+
+    initParadigm();
     initHUDText();
     initRewardBar();
     inputManager.addMapping("Test Mode", new KeyTrigger(KeyInput.KEY_T));
     inputManager.addListener(actionListener, new String[] { "Test Mode" });
 
-    initParadigm();
   }
 
   private ActionListener actionListener = new ActionListener() {
     public void onAction(String name, boolean keyPressed, float tpf) {
 
       if (!keyPressed) {
-        System.out.println("Toggle Test Mode...");
         testMode = !testMode;
       }
     }
@@ -152,7 +147,7 @@ public abstract class FBParadigm extends SimpleApplication {
     hudText.setSize(28); // font size
     hudText.setColor(ColorRGBA.Blue); // font color
     hudText.setText("Waiting for control..."); // the text
-    hudText.setLocalTranslation(settings.getWidth() / 3f, settings.getHeight() - 100, 0); // position
+    hudText.setLocalTranslation(settings.getWidth() / 3f, settings.getHeight() - 200, 0); // position
     guiNode.attachChild(hudText);
   }
 
@@ -179,23 +174,23 @@ public abstract class FBParadigm extends SimpleApplication {
 
   abstract void startParadigm();
 
-  abstract void updateParadigm();
+  abstract void updateParadigm(boolean intervalExpired);
 
   abstract void stopParadigm();
 
-  private void updateRewardBar() {
+  private void updateRewardBar(boolean delayExpired) {
 
-    if (System.currentTimeMillis() - lastRewardBarUpdateTime < INTERVAL) {
+    float value = geo.getLocalScale().y -1f;
+    float updatedValue = FBParadigm.updateIncrementalValue(value, rewardTarget, .02f);
+
+    if (value == updatedValue) {
       return;
     }
+    geo.setLocalScale(1, 1f+updatedValue, 1);
+    ColorRGBA c = updatedValue < .1f ? ColorRGBA.Yellow : ColorRGBA.Green;
+    geo.getMaterial().setColor(COLOR, c);  
 
-    geo.setLocalScale(1, 1 + reward, 1);
-
-    ColorRGBA c = reward < 0f ? ColorRGBA.Red : reward < .1f ? ColorRGBA.Yellow : ColorRGBA.Green;
-
-    geo.getMaterial().setColor(COLOR, c);
-
-    lastRewardBarUpdateTime = System.currentTimeMillis();
+ 
   }
 
   int timeouts = 0;
@@ -231,18 +226,28 @@ public abstract class FBParadigm extends SimpleApplication {
     }
 
     getReward();
-    // calcEWMA();
+    calcEWMA();
 
-    updateRewardBar();
-    updateParadigm();
     updateVolume();
+
+    boolean delayExpired = System.currentTimeMillis() - lastIntervalTime > INTERVAL;
+
+    if (delayExpired) {
+      rewardTarget = reward;
+      lastIntervalTime = System.currentTimeMillis();
+    }
+    
+    updateRewardBar(delayExpired);
+    updateParadigm(delayExpired);    
+
+    lastReward = reward;
 
   }
 
   private int calcTestReward() {
 
     // random * STD + MEAN
-    int i = Math.round((float) random.nextGaussian() *40f + 50f);
+    int i = Math.round((float) random.nextGaussian() * 40f + 30f);
 
     return Math.max(Math.min(100, i), -100);
 
@@ -259,12 +264,11 @@ public abstract class FBParadigm extends SimpleApplication {
     }
 
     // get -1f to 1f
-    reward = .1f * Math.round(i/10f);
+    reward = .1f * Math.round(i / 10f);
 
   }
 
   private void calcEWMA() {
-
 
     rewardEMWA = .01f * Math.round(100 * ((A * reward) + (ONEMINUS_A * rewardEMWA)));
 
@@ -293,33 +297,26 @@ public abstract class FBParadigm extends SimpleApplication {
     pic.updateGeometricState();
   }
 
-  public boolean setVolume(float targetVolume) {
+  public void setVolume(float targetVolume) {
 
-    if (volChangePending) {
-      System.out.println("vol change pending...");
-      return false;
-    }
-    
     volChangeTarget = targetVolume;
-    volChangePending = true;
-    
-    return true;
   }
 
   private void updateVolume() {
 
-    if (!volChangePending) {
-      return;
-    }
-
     float volume = audioNode.getVolume();
+    float updated = updateIncrementalValue(volume, volChangeTarget, VOL_INC);
+    audioNode.setVolume(updated);
+  }
 
-    if (volume < volChangeTarget) {
-      audioNode.setVolume(volume + volIncrement);
-    } else {
-      audioNode.setVolume(Math.max(volume - volIncrement, 0));
+  static float updateIncrementalValue(float value, float targetVal, float incOrDec) {
+
+    // no increment/decrement to do
+    if (Math.abs(value - targetVal) < incOrDec) {
+      return targetVal;
     }
-    volChangePending = Math.abs(volume - volChangeTarget) >= volIncrement;
+
+    return (value < targetVal) ? value + incOrDec : value - incOrDec;
   }
 
   void initUDP() {

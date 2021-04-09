@@ -34,11 +34,11 @@ import com.jme3.water.WaterFilter;
  */
 public class OceanParadigm extends FBParadigm {
 
+    private static final float AMP_INC = .02f;
     final private Vector3f lightDir = new Vector3f(-4.9236743f, -1.27054665f, 5.896916f);
     private WaterFilter water;
     private TerrainQuad terrain;
     private Material matRock;
-    private AudioNode waves;
     final private LowPassFilter aboveWaterAudioFilter = new LowPassFilter(1, 1);
 
     // This part is to emulate tides, slightly varrying the height of the water
@@ -46,8 +46,13 @@ public class OceanParadigm extends FBParadigm {
     private float waterHeight = 0.0f;
     final private float initialWaterHeight = 90f;// 0.8f;
     private boolean uw = false;
+    private long lastChange;
+    private boolean amplitudePending;
+    private float amplitudeTarget;
+    private FogFilter fog;
 
     public static void main(String[] args) {
+
         OceanParadigm app = new OceanParadigm();
         app.start();
     }
@@ -72,7 +77,7 @@ public class OceanParadigm extends FBParadigm {
         al.setColor(ColorRGBA.White.mult(.5f));
         mainScene.addLight(al);
 
-        cam.setLocation(new Vector3f(-370.31592f, 182.04016f, 196.81192f));
+        cam.setLocation(new Vector3f(-370.31592f, 120, 196.81192f));
         cam.setRotation(new Quaternion(0.015302252f, 0.9304095f, -0.039101653f, 0.3641086f));
 
         Spatial sky = SkyFactory.createSky(assetManager, "Scenes/Beach/FullskiesSunset0068.dds", EnvMapType.CubeMap);
@@ -112,18 +117,18 @@ public class OceanParadigm extends FBParadigm {
         dof.setFocusDistance(50);
         dof.setFocusRange(100);
 
-        FogFilter fog = new FogFilter();
-        fog.setFogColor(new ColorRGBA(0.9f, 0.9f, 0.9f, 1.0f));
+        fog = new FogFilter();
+        fog.setFogColor(new ColorRGBA(0.9f, 0.9f, 0.9f, .5f));
         fog.setFogDistance(155);
-        fog.setFogDensity(1.0f);
+        fog.setFogDensity(1f);
 
         FilterPostProcessor fpp = new FilterPostProcessor(assetManager);
 
         fpp.addFilter(water);
-        fpp.addFilter(bloom);
+        // fpp.addFilter(bloom);
         // fpp.addFilter(lsf);
         // fpp.addFilter(dof);
-        // fpp.addFilter(fog);
+        fpp.addFilter(fog);
 
         fpp.addFilter(new FXAAFilter());
 
@@ -134,10 +139,10 @@ public class OceanParadigm extends FBParadigm {
 
         uw = cam.getLocation().y < waterHeight;
 
-        waves = new AudioNode(assetManager, "Sound/Environment/Ocean Waves.ogg", DataType.Buffer);
-        waves.setLooping(true);
-        waves.setReverbEnabled(true);
-        waves.setDryFilter(aboveWaterAudioFilter);
+        audioNode = new AudioNode(assetManager, "Sound/Environment/Ocean Waves.ogg", DataType.Buffer);
+        audioNode.setLooping(true);
+        audioNode.setReverbEnabled(true);
+        audioNode.setDryFilter(aboveWaterAudioFilter);
 
         //
         viewPort.addProcessor(fpp);
@@ -184,7 +189,7 @@ public class OceanParadigm extends FBParadigm {
         terrain.setMaterial(matRock);
         terrain.setLocalScale(new Vector3f(5, 5, 5));
         terrain.setLocalTranslation(new Vector3f(0, -30, 0));
-        terrain.setLocked(false); // unlock it so we can edit the height
+        // terrain.setLocked(false); // unlock it so we can edit the height
 
         terrain.setShadowMode(ShadowMode.Receive);
         rootNode.attachChild(terrain);
@@ -192,24 +197,51 @@ public class OceanParadigm extends FBParadigm {
     }
 
     @Override
-    public void updateParadigm() {
+    public void updateParadigm(boolean delayExpired) {
 
         time += .02f;
-        waterHeight = (float) Math.cos(((time * 0.6f) % FastMath.TWO_PI)) * 1.5f;
+        waterHeight = (float) Math.cos(((time * 0.6f) % FastMath.TWO_PI)) * 1.5f; // .6f, 1.5f
         water.setWaterHeight(initialWaterHeight + waterHeight);
+
+        updateAmplitude();
+
+        if (!delayExpired) {
+            return;
+        }
+
+        // invert reward and dont reward negative
+        float invertValue = reward < 0 ? .9f : (1 - reward);
+
+        // fog.setFogDensity(invertValue);
+        setVolume(invertValue * .5f);
+        amplitudeTarget = invertValue *2f;
+
+    }
+
+    private void updateAmplitude() {
+        
+        float amp = water.getMaxAmplitude();
+        float updatedValue = FBParadigm.updateIncrementalValue(amp, amplitudeTarget, AMP_INC);
+
+        water.setMaxAmplitude(updatedValue);
+
+        // waterHeight = (float) Math.cos(((time *.6f) % FastMath.TWO_PI)) * 1.5f; // .6f, 1.5f
+        // water.setWaterHeight(initialWaterHeight);
 
     }
 
     @Override
     void startParadigm() {
-        audioRenderer.playSource(waves);
+
+        audioNode.play();
         water.setSpeed(2f);
-        water.setMaxAmplitude(4f); // 3f
+        water.setMaxAmplitude(1f); // 3f
     }
 
     @Override
     void stopParadigm() {
-        audioRenderer.stopSource(waves);
+
+        audioNode.stop();
         water.setSpeed(0f);
         water.setMaxAmplitude(0f); // 3f
     }
