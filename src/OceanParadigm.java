@@ -35,6 +35,7 @@ import com.jme3.water.WaterFilter;
 public class OceanParadigm extends FBParadigm {
 
     private static final float AMP_INC = .02f;
+    private static final float FOG_INC = .005f;
     final private Vector3f lightDir = new Vector3f(-4.9236743f, -1.27054665f, 5.896916f);
     private WaterFilter water;
     private TerrainQuad terrain;
@@ -45,11 +46,9 @@ public class OceanParadigm extends FBParadigm {
     private float time = 0.0f;
     private float waterHeight = 0.0f;
     final private float initialWaterHeight = 90f;// 0.8f;
-    private boolean uw = false;
-    private long lastChange;
-    private boolean amplitudePending;
     private float amplitudeTarget;
     private FogFilter fog;
+    private float fogTarget;
 
     public static void main(String[] args) {
 
@@ -89,7 +88,7 @@ public class OceanParadigm extends FBParadigm {
         // Water Filter
         water = new WaterFilter(mainScene, lightDir);
 
-        water.setWaterTransparency(0.01f);
+        water.setWaterTransparency(0.005f);
         water.setFoamIntensity(0.8f);
         water.setFoamHardness(.5f);
         water.setFoamExistence(new Vector3f(2f, 8f, 1f));
@@ -98,7 +97,7 @@ public class OceanParadigm extends FBParadigm {
         water.setWaveScale(0.01f); // .01f
         water.setMaxAmplitude(0f); // 3f
         water.setFoamTexture((Texture2D) assetManager.loadTexture("Common/MatDefs/Water/Textures/foam2.jpg"));
-        water.setRefractionStrength(0f);
+        water.setRefractionStrength(0); // 0
         water.setWaterHeight(90);
 
         water.getWindDirection().set(.1f, -1f);
@@ -118,7 +117,7 @@ public class OceanParadigm extends FBParadigm {
         dof.setFocusRange(100);
 
         fog = new FogFilter();
-        fog.setFogColor(new ColorRGBA(0.9f, 0.9f, 0.9f, .5f));
+        fog.setFogColor(new ColorRGBA(0.3f, 0.3f, 0.3f, 0f));
         fog.setFogDistance(155);
         fog.setFogDensity(1f);
 
@@ -136,8 +135,6 @@ public class OceanParadigm extends FBParadigm {
         if (numSamples > 0) {
             fpp.setNumSamples(numSamples);
         }
-
-        uw = cam.getLocation().y < waterHeight;
 
         audioNode = new AudioNode(assetManager, "Sound/Environment/Ocean Waves.ogg", DataType.Buffer);
         audioNode.setLooping(true);
@@ -197,7 +194,7 @@ public class OceanParadigm extends FBParadigm {
     }
 
     @Override
-    public void updateParadigm(boolean delayExpired) {
+    public void updateParadigm(boolean sync, long duration) {
 
         time += .02f;
         waterHeight = (float) Math.cos(((time * 0.6f) % FastMath.TWO_PI)) * 1.5f; // .6f, 1.5f
@@ -205,28 +202,26 @@ public class OceanParadigm extends FBParadigm {
 
         updateAmplitude();
 
-        if (!delayExpired) {
-            return;
-        }
-
         // invert reward and dont reward negative
         float invertValue = reward < 0 ? .9f : (1 - reward);
 
-        // fog.setFogDensity(invertValue);
-        setVolume(invertValue * .5f);
+        // setVolume(invertValue * .5f);
         amplitudeTarget = invertValue *2f;
+        fogTarget = invertValue;
 
     }
 
     private void updateAmplitude() {
         
-        float amp = water.getMaxAmplitude();
-        float updatedValue = FBParadigm.updateIncrementalValue(amp, amplitudeTarget, AMP_INC);
+        float value = water.getMaxAmplitude();
+        float updatedValue = FBParadigm.updateIncrementalValue(value, amplitudeTarget, AMP_INC);
 
         water.setMaxAmplitude(updatedValue);
-
-        // waterHeight = (float) Math.cos(((time *.6f) % FastMath.TWO_PI)) * 1.5f; // .6f, 1.5f
         // water.setWaterHeight(initialWaterHeight);
+
+        value = fog.getFogDensity();
+        updatedValue = FBParadigm.updateIncrementalValue(value, fogTarget, FOG_INC);
+        fog.setFogDensity(updatedValue);
 
     }
 

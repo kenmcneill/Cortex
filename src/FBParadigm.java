@@ -26,8 +26,6 @@ import com.jme3.ui.Picture;
 
 public abstract class FBParadigm extends SimpleApplication {
 
-  private static final int INTERVAL = 500;
-  private static final float _100F = 100f;
   private static final String COLOR = "Color";
 
   private static float A = .75f;
@@ -44,7 +42,7 @@ public abstract class FBParadigm extends SimpleApplication {
   String rawString = null;
   byte[] rawData = null;
   float reward = .1f;
-  private float lastReward;
+  private float smoothChangeValue;
   private float rewardTarget;
   private long lastIntervalTime;
 
@@ -53,8 +51,9 @@ public abstract class FBParadigm extends SimpleApplication {
   private Random random = new Random();
   protected float rewardEMWA = 0;
 
-  static float VOL_INC = .02f;
+  static float VOL_INC = .01f;
   float volChangeTarget = 0;
+  int timeouts = 0;
 
   AudioNode audioNode;
 
@@ -140,6 +139,8 @@ public abstract class FBParadigm extends SimpleApplication {
     }
   };
   private BitmapText hudText;
+  private boolean sync;
+  private long intervalDuration;
 
   void initHUDText() {
 
@@ -174,26 +175,17 @@ public abstract class FBParadigm extends SimpleApplication {
 
   abstract void startParadigm();
 
-  abstract void updateParadigm(boolean intervalExpired);
+  abstract void updateParadigm(boolean sync, long intervalDuration2);
 
   abstract void stopParadigm();
 
-  private void updateRewardBar(boolean delayExpired) {
+  private void updateRewardBar() {
 
-    float value = geo.getLocalScale().y -1f;
-    float updatedValue = FBParadigm.updateIncrementalValue(value, rewardTarget, .02f);
-
-    if (value == updatedValue) {
-      return;
-    }
-    geo.setLocalScale(1, 1f+updatedValue, 1);
-    ColorRGBA c = updatedValue < .1f ? ColorRGBA.Yellow : ColorRGBA.Green;
+    geo.setLocalScale(1, 1f+smoothChangeValue, 1);
+    ColorRGBA c = smoothChangeValue < .05f ? ColorRGBA.Yellow : ColorRGBA.Green;
     geo.getMaterial().setColor(COLOR, c);  
 
- 
   }
-
-  int timeouts = 0;
 
   @Override
   public void simpleUpdate(float tpf) {
@@ -220,6 +212,8 @@ public abstract class FBParadigm extends SimpleApplication {
       hudText.removeFromParent();
       getReward();
       rewardEMWA = reward;
+      rewardTarget = reward;
+      smoothChangeValue = reward;
       startParadigm();
       started = true;
       return;
@@ -228,26 +222,28 @@ public abstract class FBParadigm extends SimpleApplication {
     getReward();
     calcEWMA();
 
-    updateVolume();
+    smoothChangeValue = FBParadigm.updateIncrementalValue(smoothChangeValue, rewardTarget, .01f);
 
-    boolean delayExpired = System.currentTimeMillis() - lastIntervalTime > INTERVAL;
+    if (smoothChangeValue == rewardTarget) {
 
-    if (delayExpired) {
       rewardTarget = reward;
-      lastIntervalTime = System.currentTimeMillis();
+      long now = System.currentTimeMillis();
+      intervalDuration = now - lastIntervalTime;
+      lastIntervalTime = now;
+      sync = true;
     }
-    
-    updateRewardBar(delayExpired);
-    updateParadigm(delayExpired);    
 
-    lastReward = reward;
+    audioNode.setVolume(Math.max(smoothChangeValue, .1f));
+    updateRewardBar();
+    updateParadigm(sync, intervalDuration);    
 
+    sync = false;
   }
 
   private int calcTestReward() {
 
     // random * STD + MEAN
-    int i = Math.round((float) random.nextGaussian() * 40f + 30f);
+    int i = Math.round((float) random.nextGaussian() * 40f + 40f);
 
     return Math.max(Math.min(100, i), -100);
 
@@ -295,18 +291,6 @@ public abstract class FBParadigm extends SimpleApplication {
     viewPort.setClearFlags(false, true, true);
 
     pic.updateGeometricState();
-  }
-
-  public void setVolume(float targetVolume) {
-
-    volChangeTarget = targetVolume;
-  }
-
-  private void updateVolume() {
-
-    float volume = audioNode.getVolume();
-    float updated = updateIncrementalValue(volume, volChangeTarget, VOL_INC);
-    audioNode.setVolume(updated);
   }
 
   static float updateIncrementalValue(float value, float targetVal, float incOrDec) {
