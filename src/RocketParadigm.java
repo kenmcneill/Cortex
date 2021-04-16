@@ -82,7 +82,7 @@ public class RocketParadigm extends FBParadigm {
     audioNode.stop();
   }
 
-  void updateParadigm(boolean sync, long duration) {
+  void updateParadigm(boolean sync) {
 
     if (rocketNode.getLocalTranslation().y >= thresholdY) {
 
@@ -118,13 +118,11 @@ public class RocketParadigm extends FBParadigm {
       return;
     }
 
-    blastEffect.getMaxNumParticles();
-
     // sync to blast exhaust effect proportional to reward
     blastEffect.setStartSize(Math.max(reward * .45f, .2f));
 
     // reset the effect
-    blastEffect.emitAllParticles();
+    // blastEffect.emitAllParticles();
 
   }
 

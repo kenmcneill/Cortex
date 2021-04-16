@@ -1,9 +1,11 @@
 import com.jme3.audio.AudioData.DataType;
+import com.jme3.bounding.BoundingSphere;
 import com.jme3.audio.AudioNode;
 import com.jme3.audio.LowPassFilter;
 import com.jme3.light.AmbientLight;
 import com.jme3.light.DirectionalLight;
 import com.jme3.material.Material;
+import com.jme3.material.RenderState.BlendMode;
 import com.jme3.math.ColorRGBA;
 import com.jme3.math.FastMath;
 import com.jme3.math.Quaternion;
@@ -14,9 +16,13 @@ import com.jme3.post.filters.DepthOfFieldFilter;
 import com.jme3.post.filters.FXAAFilter;
 import com.jme3.post.filters.FogFilter;
 import com.jme3.post.filters.LightScatteringFilter;
+import com.jme3.renderer.queue.RenderQueue.Bucket;
 import com.jme3.renderer.queue.RenderQueue.ShadowMode;
+import com.jme3.scene.Geometry;
 import com.jme3.scene.Node;
 import com.jme3.scene.Spatial;
+import com.jme3.scene.shape.Quad;
+import com.jme3.scene.shape.Sphere;
 import com.jme3.terrain.geomipmap.TerrainQuad;
 import com.jme3.terrain.heightmap.AbstractHeightMap;
 import com.jme3.terrain.heightmap.ImageBasedHeightMap;
@@ -34,21 +40,25 @@ import com.jme3.water.WaterFilter;
  */
 public class OceanParadigm extends FBParadigm {
 
-    private static final float AMP_INC = .02f;
-    private static final float FOG_INC = .005f;
-    final private Vector3f lightDir = new Vector3f(-4.9236743f, -1.27054665f, 5.896916f);
+    //final private Vector3f lightDir = new Vector3f(-4.9236743f, -1.27054665f, 5.896916f);
+
+    private Vector3f lightDir;
     private WaterFilter water;
     private TerrainQuad terrain;
     private Material matRock;
-    final private LowPassFilter aboveWaterAudioFilter = new LowPassFilter(1, 1);
 
     // This part is to emulate tides, slightly varrying the height of the water
     private float time = 0.0f;
-    private float waterHeight = 0.0f;
-    final private float initialWaterHeight = 90f;// 0.8f;
-    private float amplitudeTarget;
+    final private float seaLevel = 36f;// 0.8f;
+    private float waterDisplacement = 0;
+
     private FogFilter fog;
-    private float fogTarget;
+    private Spatial sky;
+    private Node mainScene;
+    private Geometry sunGeom;
+    private DirectionalLight sunLight;
+    private AmbientLight ambLight;
+    private LightScatteringFilter lsf;
 
     public static void main(String[] args) {
 
@@ -59,74 +69,81 @@ public class OceanParadigm extends FBParadigm {
     @Override
     public void initParadigm() {
 
-        setDisplayFps(false);
-        setDisplayStatView(false);
+        flyCam.setMoveSpeed(20);
+        flyCam.setRotationSpeed(.5f);
 
-        Node mainScene = new Node("Main Scene");
+        mainScene = new Node("Main Scene");
         rootNode.attachChild(mainScene);
 
-        createTerrain(mainScene);
+        createTerrain();
+        createSun();
 
-        DirectionalLight sun = new DirectionalLight();
-        sun.setDirection(lightDir);
-        sun.setColor(ColorRGBA.White.clone().multLocal(1f));
-        mainScene.addLight(sun);
+        sunLight = new DirectionalLight();
 
-        AmbientLight al = new AmbientLight();
-        al.setColor(ColorRGBA.White.mult(.5f));
-        mainScene.addLight(al);
+        lightDir = new Vector3f(0, -1, 15);
+        sunLight.setDirection(lightDir);
+        sunLight.setColor(ColorRGBA.Yellow.mult(.1f));
+        mainScene.addLight(sunLight);
 
-        cam.setLocation(new Vector3f(-370.31592f, 120, 196.81192f));
-        cam.setRotation(new Quaternion(0.015302252f, 0.9304095f, -0.039101653f, 0.3641086f));
+        ambLight = new AmbientLight();
+        ambLight.setColor(ColorRGBA.Yellow.mult(.1f));
+        mainScene.addLight(ambLight);
 
-        Spatial sky = SkyFactory.createSky(assetManager, "Scenes/Beach/FullskiesSunset0068.dds", EnvMapType.CubeMap);
-        // sky.setLocalScale(350);
+        cam.setLocation(new Vector3f(0, seaLevel+2.5f, 5));
+        // cam.setLocation(new Vector3f(-370.31592f, 120, 196.81192f));
+        // cam.setRotation(new Quaternion(0.015302252f, 0.9304095f, -0.039101653f, 0.3641086f));
+
+        sky = SkyFactory.createSky(assetManager, "Scenes/Beach/FullskiesSunset0068.dds", EnvMapType.CubeMap);
+        // sky = SkyFactory.createSky(assetManager, "assets/sky1.jpg", EnvMapType.SphereMap);
+        sky.rotate(0, (float)Math.PI, 0);
 
         mainScene.attachChild(sky);
         cam.setFrustumFar(4000);
 
+        audioNode = new AudioNode(assetManager, "Sound/Environment/Ocean Waves.ogg", DataType.Buffer);
+        audioNode.setLooping(true);
+        audioNode.setReverbEnabled(true);
+
+        addFx();
+
+    }
+
+    void addFx() {
         // Water Filter
         water = new WaterFilter(mainScene, lightDir);
 
         water.setWaterTransparency(0.005f);
         water.setFoamIntensity(0.8f);
-        water.setFoamHardness(.5f);
-        water.setFoamExistence(new Vector3f(2f, 8f, 1f));
+        water.setFoamHardness(2); // .5f
+        water.setFoamExistence(new Vector3f(2f, 6f, 1f));
         water.setSpeed(0); // .6f
         water.setRefractionConstant(0.1f);
         water.setWaveScale(0.01f); // .01f
         water.setMaxAmplitude(0f); // 3f
         water.setFoamTexture((Texture2D) assetManager.loadTexture("Common/MatDefs/Water/Textures/foam2.jpg"));
         water.setRefractionStrength(0); // 0
-        water.setWaterHeight(90);
+        water.setWaterHeight(seaLevel);
 
         water.getWindDirection().set(.1f, -1f);
 
         // Bloom Filter
         BloomFilter bloom = new BloomFilter();
         bloom.setExposurePower(55);
-        bloom.setBloomIntensity(.5f);
+        bloom.setBloomIntensity(.5f); // .5f
 
-        // Light Scattering Filter
-        LightScatteringFilter lsf = new LightScatteringFilter(lightDir.mult(-300));
-        lsf.setLightDensity(0.5f);
-
-        // Depth of field Filter
-        DepthOfFieldFilter dof = new DepthOfFieldFilter();
-        dof.setFocusDistance(50);
-        dof.setFocusRange(100);
+        lsf = new LightScatteringFilter(lightDir.mult(-1000));
+        lsf.setLightDensity(.5f); // .5f
 
         fog = new FogFilter();
         fog.setFogColor(new ColorRGBA(0.3f, 0.3f, 0.3f, 0f));
         fog.setFogDistance(155);
-        fog.setFogDensity(1f);
+        fog.setFogDensity(1.2f);
 
         FilterPostProcessor fpp = new FilterPostProcessor(assetManager);
 
         fpp.addFilter(water);
-        // fpp.addFilter(bloom);
-        // fpp.addFilter(lsf);
-        // fpp.addFilter(dof);
+        fpp.addFilter(bloom);
+        fpp.addFilter(lsf);
         fpp.addFilter(fog);
 
         fpp.addFilter(new FXAAFilter());
@@ -135,18 +152,32 @@ public class OceanParadigm extends FBParadigm {
         if (numSamples > 0) {
             fpp.setNumSamples(numSamples);
         }
-
-        audioNode = new AudioNode(assetManager, "Sound/Environment/Ocean Waves.ogg", DataType.Buffer);
-        audioNode.setLooping(true);
-        audioNode.setReverbEnabled(true);
-        audioNode.setDryFilter(aboveWaterAudioFilter);
-
-        //
         viewPort.addProcessor(fpp);
 
     }
 
-    private void createTerrain(Node rootNode) {
+    void createSun() {
+        
+        Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
+
+        mat.setColor("Color", ColorRGBA.Yellow);
+        mat.setColor("GlowColor", ColorRGBA.Red);
+
+        sunGeom = new Geometry();
+        
+        sunGeom.setMaterial(mat);
+
+        Sphere sphere = new Sphere(16, 64, 10f);
+        sunGeom.setMesh(sphere);
+
+        sunGeom.setQueueBucket(Bucket.Sky);
+        sunGeom.setCullHint(Spatial.CullHint.Never);
+        sunGeom.setLocalTranslation(new Vector3f(0, seaLevel-6.5f, -100));
+
+        rootNode.attachChild(sunGeom);
+    }
+
+    private void createTerrain() {
 
         matRock = new Material(assetManager, "Common/MatDefs/Terrain/TerrainLighting.j3md");
         matRock.setBoolean("useTriPlanarMapping", false);
@@ -184,44 +215,37 @@ public class OceanParadigm extends FBParadigm {
         }
         terrain = new TerrainQuad("terrain", 65, 513, heightmap.getHeightMap());
         terrain.setMaterial(matRock);
-        terrain.setLocalScale(new Vector3f(5, 5, 5));
-        terrain.setLocalTranslation(new Vector3f(0, -30, 0));
+        terrain.setLocalScale(new Vector3f(4, 1, 4));
+        // terrain.setLocalTranslation(new Vector3f(0, -30, 0));
         // terrain.setLocked(false); // unlock it so we can edit the height
 
         terrain.setShadowMode(ShadowMode.Receive);
-        rootNode.attachChild(terrain);
+        mainScene.attachChild(terrain);
 
     }
 
     @Override
-    public void updateParadigm(boolean sync, long duration) {
+    public void updateParadigm(boolean sync) {
 
-        time += .02f;
-        waterHeight = (float) Math.cos(((time * 0.6f) % FastMath.TWO_PI)) * 1.5f; // .6f, 1.5f
-        water.setWaterHeight(initialWaterHeight + waterHeight);
+        time += .01f;
+        waterDisplacement = (float) Math.sin(time % FastMath.TWO_PI) * 1f; // .6f, 1.5f
+        water.setWaterHeight(seaLevel + waterDisplacement);
 
-        updateAmplitude();
+        // invert reward and don't reward negative
+        float invertValue = smoothChangeValue < 0 ? 1f : (1 - smoothChangeValue);
 
-        // invert reward and dont reward negative
-        float invertValue = reward < 0 ? .9f : (1 - reward);
+        water.setMaxAmplitude(invertValue);
 
-        // setVolume(invertValue * .5f);
-        amplitudeTarget = invertValue *2f;
-        fogTarget = invertValue;
-
-    }
-
-    private void updateAmplitude() {
+        float coeff = .1f;
+        sunGeom.move(0, reward * coeff, 0); // .01;
         
-        float value = water.getMaxAmplitude();
-        float updatedValue = FBParadigm.updateIncrementalValue(value, amplitudeTarget, AMP_INC);
+        Vector3f dir = water.getLightDirection();
+        dir.addLocal(0, 0, reward*coeff);
 
-        water.setMaxAmplitude(updatedValue);
-        // water.setWaterHeight(initialWaterHeight);
-
-        value = fog.getFogDensity();
-        updatedValue = FBParadigm.updateIncrementalValue(value, fogTarget, FOG_INC);
-        fog.setFogDensity(updatedValue);
+        water.setLightDirection(dir);
+        sunLight.setDirection(dir);
+        dir = lsf.getLightPosition();
+        fog.setFogDensity(invertValue);
 
     }
 

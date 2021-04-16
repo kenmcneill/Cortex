@@ -37,23 +37,24 @@ public abstract class FBParadigm extends SimpleApplication {
   private static final int PORT = 54321;
   private boolean testMode = false;
   private static DatagramSocket socket;
-  private byte[] buf = new byte[10];
+  private byte[] buf = new byte[1];
   DatagramPacket packet = new DatagramPacket(buf, buf.length);
   String rawString = null;
   byte[] rawData = null;
-  float reward = .1f;
-  private float smoothChangeValue;
-  private float rewardTarget;
-  private long lastIntervalTime;
+  float reward = 0;
+  protected float rewardEMWA = 0;
+  
+  float smoothChangeValue;
+  private float smoothChangeTarget;
 
   boolean started = false;
   private Geometry geo;
   private Random random = new Random();
-  protected float rewardEMWA = 0;
 
-  static float VOL_INC = .01f;
-  float volChangeTarget = 0;
   int timeouts = 0;
+
+  private BitmapText hudText;
+  private boolean sync;
 
   AudioNode audioNode;
 
@@ -81,7 +82,9 @@ public abstract class FBParadigm extends SimpleApplication {
 
   FBParadigm() {
 
-    super(new AppState[] {});
+    super();
+
+    // super(new AppState[] {});
 
     this.setShowSettings(false);
 
@@ -131,16 +134,14 @@ public abstract class FBParadigm extends SimpleApplication {
   }
 
   private ActionListener actionListener = new ActionListener() {
+    
     public void onAction(String name, boolean keyPressed, float tpf) {
 
-      if (!keyPressed) {
+      if (!keyPressed && name.equals("Test Mode")) {
         testMode = !testMode;
       }
     }
   };
-  private BitmapText hudText;
-  private boolean sync;
-  private long intervalDuration;
 
   void initHUDText() {
 
@@ -175,7 +176,7 @@ public abstract class FBParadigm extends SimpleApplication {
 
   abstract void startParadigm();
 
-  abstract void updateParadigm(boolean sync, long intervalDuration2);
+  abstract void updateParadigm(boolean sync);
 
   abstract void stopParadigm();
 
@@ -212,7 +213,7 @@ public abstract class FBParadigm extends SimpleApplication {
       hudText.removeFromParent();
       getReward();
       rewardEMWA = reward;
-      rewardTarget = reward;
+      smoothChangeTarget = reward;
       smoothChangeValue = reward;
       startParadigm();
       started = true;
@@ -222,20 +223,17 @@ public abstract class FBParadigm extends SimpleApplication {
     getReward();
     calcEWMA();
 
-    smoothChangeValue = FBParadigm.updateIncrementalValue(smoothChangeValue, rewardTarget, .01f);
+    if (smoothChangeValue == smoothChangeTarget) {
 
-    if (smoothChangeValue == rewardTarget) {
-
-      rewardTarget = reward;
-      long now = System.currentTimeMillis();
-      intervalDuration = now - lastIntervalTime;
-      lastIntervalTime = now;
+      smoothChangeTarget = reward;
       sync = true;
     }
 
+    smoothChangeValue = FBParadigm.updateIncrementalValue(smoothChangeValue, smoothChangeTarget, .01f);
+
     audioNode.setVolume(Math.max(smoothChangeValue, .1f));
     updateRewardBar();
-    updateParadigm(sync, intervalDuration);    
+    updateParadigm(sync);    
 
     sync = false;
   }
