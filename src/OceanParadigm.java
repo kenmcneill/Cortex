@@ -33,6 +33,8 @@ import com.jme3.util.SkyFactory;
 import com.jme3.util.SkyFactory.EnvMapType;
 import com.jme3.water.WaterFilter;
 
+import org.w3c.dom.css.RGBColor;
+
 /**
  * test
  *
@@ -50,6 +52,10 @@ public class OceanParadigm extends FBParadigm {
     // This part is to emulate tides, slightly varrying the height of the water
     private float time = 0.0f;
     final private float seaLevel = 36f;// 0.8f;
+    final private float sunStartY = seaLevel -6.6f;
+    final private float sunEndY = 96f;
+    final private float sunDisplacement = sunEndY - sunStartY;
+
     private float waterDisplacement = 0;
 
     private FogFilter fog;
@@ -80,13 +86,13 @@ public class OceanParadigm extends FBParadigm {
 
         sunLight = new DirectionalLight();
 
-        lightDir = new Vector3f(0, -1, 15);
+        lightDir = new Vector3f(0, -1, .5f);
         sunLight.setDirection(lightDir);
-        sunLight.setColor(ColorRGBA.Yellow.mult(.1f));
+        sunLight.setColor(ColorRGBA.White.mult(.1f));
         mainScene.addLight(sunLight);
 
         ambLight = new AmbientLight();
-        ambLight.setColor(ColorRGBA.Yellow.mult(.1f));
+        ambLight.setColor(ColorRGBA.Yellow.mult(.01f));
         mainScene.addLight(ambLight);
 
         cam.setLocation(new Vector3f(0, seaLevel+2.5f, 5));
@@ -126,18 +132,20 @@ public class OceanParadigm extends FBParadigm {
 
         water.getWindDirection().set(.1f, -1f);
 
+        water.setLightColor(ColorRGBA.Yellow.mult(.2f));
+
         // Bloom Filter
         BloomFilter bloom = new BloomFilter();
         bloom.setExposurePower(55);
-        bloom.setBloomIntensity(.5f); // .5f
+        bloom.setBloomIntensity(1.2f); // .5f
 
-        lsf = new LightScatteringFilter(lightDir.mult(-1000));
-        lsf.setLightDensity(.5f); // .5f
+        lsf = new LightScatteringFilter(cam.getDirection().negate().multLocal(1000));
+        lsf.setLightDensity(1.2f); // .5f
 
         fog = new FogFilter();
         fog.setFogColor(new ColorRGBA(0.3f, 0.3f, 0.3f, 0f));
-        fog.setFogDistance(155);
-        fog.setFogDensity(1.2f);
+        fog.setFogDistance(200);
+        fog.setFogDensity(1f);
 
         FilterPostProcessor fpp = new FilterPostProcessor(assetManager);
 
@@ -161,7 +169,7 @@ public class OceanParadigm extends FBParadigm {
         Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
 
         mat.setColor("Color", ColorRGBA.Yellow);
-        mat.setColor("GlowColor", ColorRGBA.Red);
+        mat.setColor("GlowColor", ColorRGBA.Yellow);
 
         sunGeom = new Geometry();
         
@@ -172,7 +180,7 @@ public class OceanParadigm extends FBParadigm {
 
         sunGeom.setQueueBucket(Bucket.Sky);
         sunGeom.setCullHint(Spatial.CullHint.Never);
-        sunGeom.setLocalTranslation(new Vector3f(0, seaLevel-6.5f, -100));
+        sunGeom.setLocalTranslation(new Vector3f(0, sunStartY, -100));
 
         rootNode.attachChild(sunGeom);
     }
@@ -236,16 +244,22 @@ public class OceanParadigm extends FBParadigm {
 
         water.setMaxAmplitude(invertValue);
 
-        float coeff = .1f;
-        sunGeom.move(0, reward * coeff, 0); // .01;
+        float c1 = reward * .1f; // .01;
+        float c2 = c1 *.1f;
+
+        sunGeom.move(0, c1, 0); 
+        lsf.setLightPosition(sunGeom.getWorldTranslation().mult(100));
+
+        float sunFactor = (sunGeom.getWorldTranslation().y - sunStartY)/sunDisplacement;
         
         Vector3f dir = water.getLightDirection();
-        dir.addLocal(0, 0, reward*coeff);
+        dir.addLocal(0, 0, c2);
 
         water.setLightDirection(dir);
         sunLight.setDirection(dir);
-        dir = lsf.getLightPosition();
-        fog.setFogDensity(invertValue);
+
+        fog.setFogDensity(1 - sunFactor);
+        ambLight.setColor(ColorRGBA.White.mult(sunFactor));
 
     }
 
