@@ -57,6 +57,7 @@ public abstract class FBParadigm extends SimpleApplication {
   private boolean sync;
 
   AudioNode audioNode;
+  boolean invertVol = false;
 
   static {
     try {
@@ -87,6 +88,8 @@ public abstract class FBParadigm extends SimpleApplication {
     // super(new AppState[] {});
 
     this.setShowSettings(false);
+    this.setDisplayStatView(false);
+    this.setDisplayFps(false);
 
     AppSettings settings = new AppSettings(true);
 
@@ -231,7 +234,9 @@ public abstract class FBParadigm extends SimpleApplication {
 
     smoothChangeValue = FBParadigm.updateIncrementalValue(smoothChangeValue, smoothChangeTarget, .01f);
 
-    audioNode.setVolume(Math.max(smoothChangeValue, .1f));
+    float volTarget = invertVol ? 1 - smoothChangeValue : smoothChangeValue;
+
+    audioNode.setVolume(Math.max(volTarget, .01f));
     updateRewardBar();
     updateParadigm(sync);    
 

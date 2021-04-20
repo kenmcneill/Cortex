@@ -3,7 +3,6 @@ import com.jme3.audio.AudioData.DataType;
 import java.util.Random;
 
 import com.jme3.audio.AudioNode;
-import com.jme3.audio.LowPassFilter;
 import com.jme3.effect.ParticleEmitter;
 import com.jme3.effect.ParticleMesh.Type;
 import com.jme3.light.DirectionalLight;
@@ -64,7 +63,6 @@ public class RocketParadigm extends FBParadigm {
     audioNode.setLooping(true);
     audioNode.setVolume(MIN_VOL);
     audioNode.setReverbEnabled(true);
-    // audioNode.setDryFilter(new LowPassFilter(1f, .5f));
   }
 
   @Override

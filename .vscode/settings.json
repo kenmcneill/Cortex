@@ -11,5 +11,8 @@
         "sources": { 
             "lib/jme3-core.jar": "sources/jme3-core-sources.jar" 
         } 
-    }
+    },
+    "java.project.sourcePaths": [
+        "src"
+    ]
 }
