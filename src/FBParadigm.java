@@ -35,7 +35,7 @@ public abstract class FBParadigm extends SimpleApplication {
 
   private static InetAddress inet;
   private static final int PORT = 54321;
-  private boolean testMode = false;
+  boolean testMode = false;
   private static DatagramSocket socket;
   private byte[] buf = new byte[1];
   DatagramPacket packet = new DatagramPacket(buf, buf.length);
@@ -83,9 +83,9 @@ public abstract class FBParadigm extends SimpleApplication {
 
   FBParadigm() {
 
-    super();
+    // super();
 
-    // super(new AppState[] {});
+    super(new AppState[] {});
 
     this.setShowSettings(false);
     this.setDisplayStatView(false);
@@ -133,6 +133,9 @@ public abstract class FBParadigm extends SimpleApplication {
     initRewardBar();
     inputManager.addMapping("Test Mode", new KeyTrigger(KeyInput.KEY_T));
     inputManager.addListener(actionListener, new String[] { "Test Mode" });
+    
+    inputManager.addMapping("Reset", new KeyTrigger(KeyInput.KEY_R));
+    inputManager.addListener(actionListener, new String[] { "Reset" });
 
   }
 
@@ -142,16 +145,34 @@ public abstract class FBParadigm extends SimpleApplication {
 
       if (!keyPressed && name.equals("Test Mode")) {
         testMode = !testMode;
+      } else if (name.equals("Reset")) {
+
+        resetParadigm();
+
+        if (started) {
+          return;
+        }
+        // reset();
       }
     }
   };
+
+  private void reset() {
+    
+    audioNode.setVolume(.01f);
+    reward = 0;
+    smoothChangeValue = 0;
+    updateRewardBar();
+    resetParadigm();
+
+  }
 
   void initHUDText() {
 
     hudText = new BitmapText(guiFont, false);
     hudText.setSize(28); // font size
     hudText.setColor(ColorRGBA.Blue); // font color
-    hudText.setText("Waiting for control..."); // the text
+    hudText.setText("Waiting for feedback to begin..."); // the text
     hudText.setLocalTranslation(settings.getWidth() / 3f, settings.getHeight() - 200, 0); // position
     guiNode.attachChild(hudText);
   }
@@ -183,6 +204,8 @@ public abstract class FBParadigm extends SimpleApplication {
 
   abstract void stopParadigm();
 
+  abstract void resetParadigm();
+
   private void updateRewardBar() {
 
     geo.setLocalScale(1, 1f+smoothChangeValue, 1);
@@ -204,7 +227,9 @@ public abstract class FBParadigm extends SimpleApplication {
         if (started && timeouts > 3) {
           System.out.println("stopping...");
           stopParadigm();
+          finish();
           started = false;
+          timeouts = 0;
         }
 
         return;
@@ -215,7 +240,6 @@ public abstract class FBParadigm extends SimpleApplication {
     if (!started) {
       hudText.removeFromParent();
       getReward();
-      rewardEMWA = reward;
       smoothChangeTarget = reward;
       smoothChangeValue = reward;
       startParadigm();
@@ -241,6 +265,12 @@ public abstract class FBParadigm extends SimpleApplication {
     updateParadigm(sync);    
 
     sync = false;
+  }
+
+  private void finish() {
+    
+    hudText.setText("Congratulations, you have completed the feedback session!");
+    rootNode.attachChild(hudText);
   }
 
   private int calcTestReward() {

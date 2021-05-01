@@ -36,6 +36,7 @@ public class OceanParadigm extends FBParadigm {
 
     //final private Vector3f lightDir = new Vector3f(-4.9236743f, -1.27054665f, 5.896916f);
 
+    private static final float INITIAL_FOG_DENSITY = 1.4f;
     private Vector3f lightDir;
     private WaterFilter water;
     private TerrainQuad terrain;
@@ -43,8 +44,8 @@ public class OceanParadigm extends FBParadigm {
 
     // This part is to emulate tides, slightly varrying the height of the water
     private float time = 0.0f;
-    final private float seaLevel = 36f;// 0.8f;
-    final private float sunStartY = seaLevel -6.6f;
+    final private float seaLevel = 36.5f;// 0.8f;
+    final private float sunStartY = seaLevel -7f;
     final private float sunEndY = 96f;
     final private float sunDisplacement = sunEndY - sunStartY;
 
@@ -57,6 +58,8 @@ public class OceanParadigm extends FBParadigm {
     private DirectionalLight sunLight;
     private AmbientLight ambLight;
     private LightScatteringFilter lsf;
+    private float coeff = 0;
+    private boolean rotate;
 
     public static void main(String[] args) {
 
@@ -69,8 +72,11 @@ public class OceanParadigm extends FBParadigm {
 
         invertVol = true;
         
-        flyCam.setMoveSpeed(20);
-        flyCam.setRotationSpeed(.5f);
+        if (flyCam !=null) {
+            flyCam.setMoveSpeed(20);
+            flyCam.setRotationSpeed(.5f);
+    
+        }
 
         mainScene = new Node("Main Scene");
         rootNode.attachChild(mainScene);
@@ -112,7 +118,7 @@ public class OceanParadigm extends FBParadigm {
         // Water Filter
         water = new WaterFilter(mainScene, lightDir);
 
-        water.setWaterTransparency(0.005f);
+        water.setWaterTransparency(0.02f);
         water.setFoamIntensity(0.8f);
         water.setFoamHardness(2); // .5f
         water.setFoamExistence(new Vector3f(2f, 6f, 1f));
@@ -130,16 +136,16 @@ public class OceanParadigm extends FBParadigm {
 
         // Bloom Filter
         BloomFilter bloom = new BloomFilter();
-        bloom.setExposurePower(55);
-        bloom.setBloomIntensity(1.2f); // .5f
+        bloom.setExposurePower(40); // 55
+        bloom.setBloomIntensity(3); // 1.2f
 
         lsf = new LightScatteringFilter(cam.getDirection().negate().multLocal(1000));
-        lsf.setLightDensity(1.2f); // .5f
+        lsf.setLightDensity(1.2f);
 
         fog = new FogFilter();
         fog.setFogColor(new ColorRGBA(0.3f, 0.3f, 0.3f, 0f));
         fog.setFogDistance(200);
-        fog.setFogDensity(1f);
+        fog.setFogDensity(INITIAL_FOG_DENSITY);
 
         FilterPostProcessor fpp = new FilterPostProcessor(assetManager);
 
@@ -158,7 +164,7 @@ public class OceanParadigm extends FBParadigm {
 
     }
 
-    void createSun() {
+    private void createSun() {
         
         Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
 
@@ -218,8 +224,6 @@ public class OceanParadigm extends FBParadigm {
         terrain = new TerrainQuad("terrain", 65, 513, heightmap.getHeightMap());
         terrain.setMaterial(matRock);
         terrain.setLocalScale(new Vector3f(4, 1, 4));
-        // terrain.setLocalTranslation(new Vector3f(0, -30, 0));
-        // terrain.setLocked(false); // unlock it so we can edit the height
 
         terrain.setShadowMode(ShadowMode.Receive);
         mainScene.attachChild(terrain);
@@ -238,7 +242,7 @@ public class OceanParadigm extends FBParadigm {
 
         water.setMaxAmplitude(invertValue);
 
-        float c1 = reward * .1f; // .01;
+        float c1 = reward * coeff; // .01 for non test;
         float c2 = c1 *.1f;
 
         sunGeom.move(0, c1, 0); 
@@ -252,13 +256,22 @@ public class OceanParadigm extends FBParadigm {
         water.setLightDirection(dir);
         sunLight.setDirection(dir);
 
-        fog.setFogDensity(1 - sunFactor);
+        fog.setFogDensity(INITIAL_FOG_DENSITY - sunFactor);
         ambLight.setColor(ColorRGBA.White.mult(sunFactor));
+
+        if (rotate) terrain.rotate(0, .01f, 0);
+
 
     }
 
     @Override
     void startParadigm() {
+
+        if (testMode) {
+            coeff = .1f;
+        } else {
+            coeff = .01f;
+        }
 
         audioNode.play();
         water.setSpeed(2f);
@@ -271,5 +284,13 @@ public class OceanParadigm extends FBParadigm {
         audioNode.stop();
         water.setSpeed(0f);
         water.setMaxAmplitude(0f); // 3f
+
+        System.out.println(terrain.getLocalRotation());
+
+    }
+
+    @Override
+    void resetParadigm() {
+        rotate = !rotate;
     }
 }

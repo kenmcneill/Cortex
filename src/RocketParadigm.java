@@ -160,4 +160,13 @@ public class RocketParadigm extends FBParadigm {
 
   }
 
+  @Override
+  void resetParadigm() {
+
+    setBackground("assets/ground2sky.jpg", "initial");
+    rocketNode.setLocalTranslation(0, startingY, .5f);
+    blastEffect.setStartSize(.1f);
+    
+  }
+
 }
