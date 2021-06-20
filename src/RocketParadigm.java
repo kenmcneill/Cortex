@@ -25,6 +25,7 @@ public class RocketParadigm extends FBParadigm {
 
   private int stage = 1;
   Random random = new Random();
+  private float thrustCoeff;
 
   public static void main(String[] args) throws Exception {
 
@@ -42,7 +43,6 @@ public class RocketParadigm extends FBParadigm {
     setBackground("assets/ground2sky.jpg", "initial");
 
     rocketNode = new Node();
-    // top.scale(.6f);
     rocketNode.setLocalScale(.5f);
     rocketNode.setLocalTranslation(0, startingY, .5f);
 
@@ -71,6 +71,8 @@ public class RocketParadigm extends FBParadigm {
     rocketNode.attachChild(blastEffect);
     audioNode.play();
 
+    thrustCoeff = testMode ? .1f : THRUST_COEFF;
+
   }
 
   @Override
@@ -86,30 +88,30 @@ public class RocketParadigm extends FBParadigm {
 
       switch (stage) {
 
-      case 1:
-        stage = 2;
-        setBackground("assets/clouds.jpg", "stage 2");
-        rocketNode.setLocalTranslation(0, -thresholdY, 0);
-        break;
-      case 2:
-        stage = 3;
-        setBackground("assets/earth-atmosphere.jpg", "stage 3");
-        rocketNode.setLocalTranslation(0, -thresholdY, -1);
-        break;
-      case 3:
-        stage = 4;
-        setBackground("assets/earth-outerspace.jpg", "stage 4");
-        rocketNode.setLocalTranslation(0, -thresholdY, -2);
-      case 4:
-        // finished
+        case 1:
+          stage = 2;
+          setBackground("assets/clouds.jpg", "stage 2");
+          rocketNode.setLocalTranslation(0, -thresholdY, 0);
+          return;
+        case 2:
+          stage = 3;
+          setBackground("assets/earth-atmosphere.jpg", "stage 3");
+          rocketNode.setLocalTranslation(0, -thresholdY, -1);
+          return;
+        case 3:
+          stage = 4;
+          setBackground("assets/earth-outerspace.jpg", "stage 4");
+          rocketNode.setLocalTranslation(0, -thresholdY, -2);
+          return;
+        case 4:
+            finish();
       }
-      return;
 
     }
 
     float shimmy = (float) random.nextGaussian();
 
-    rocketNode.move(shimmy * .002f, THRUST_COEFF * reward, 0f);
+    rocketNode.move(shimmy * .002f, thrustCoeff * reward, 0f);
     rocketNode.rotate(0f, shimmy * .01f, 0f);
 
     if (!sync) {
@@ -122,6 +124,12 @@ public class RocketParadigm extends FBParadigm {
     // reset the effect
     // blastEffect.emitAllParticles();
 
+  }
+
+  void finish() {
+
+    stopParadigm();
+    super.finish();
   }
 
   void initRocketGraphics() {
@@ -148,7 +156,7 @@ public class RocketParadigm extends FBParadigm {
     blastEffect.setMaterial(material);
     blastEffect.setImagesX(2);
     blastEffect.setImagesY(2); // 2x2 texture animation
-    blastEffect.setStartColor(new ColorRGBA(1f, 0f, 0f, 1f)); // redish
+    blastEffect.setStartColor(new ColorRGBA(1f, .5f, .5f, 1f)); // redish
     blastEffect.setEndColor(new ColorRGBA(1f, 1f, 1f, 0f)); // transparent white
     blastEffect.getParticleInfluencer().setInitialVelocity(new Vector3f(0, -2, 0));
     blastEffect.setStartSize(.1f);
@@ -166,7 +174,7 @@ public class RocketParadigm extends FBParadigm {
     setBackground("assets/ground2sky.jpg", "initial");
     rocketNode.setLocalTranslation(0, startingY, .5f);
     blastEffect.setStartSize(.1f);
-    
+
   }
 
 }

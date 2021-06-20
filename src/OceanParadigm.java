@@ -3,8 +3,11 @@ import com.jme3.audio.AudioNode;
 import com.jme3.light.AmbientLight;
 import com.jme3.light.DirectionalLight;
 import com.jme3.material.Material;
+import com.jme3.material.RenderState.BlendMode;
+import com.jme3.material.RenderState.FaceCullMode;
 import com.jme3.math.ColorRGBA;
 import com.jme3.math.FastMath;
+import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
 import com.jme3.post.FilterPostProcessor;
 import com.jme3.post.filters.BloomFilter;
@@ -17,6 +20,7 @@ import com.jme3.scene.Geometry;
 import com.jme3.scene.Node;
 import com.jme3.scene.Spatial;
 import com.jme3.scene.shape.Sphere;
+import com.jme3.scene.shape.Torus;
 import com.jme3.terrain.geomipmap.TerrainQuad;
 import com.jme3.terrain.heightmap.AbstractHeightMap;
 import com.jme3.terrain.heightmap.ImageBasedHeightMap;
@@ -34,9 +38,10 @@ import com.jme3.water.WaterFilter;
  */
 public class OceanParadigm extends FBParadigm {
 
-    //final private Vector3f lightDir = new Vector3f(-4.9236743f, -1.27054665f, 5.896916f);
+    // final private Vector3f lightDir = new Vector3f(-4.9236743f, -1.27054665f,
+    // 5.896916f);
 
-    private static final float INITIAL_FOG_DENSITY = 1.4f;
+    private static final float INITIAL_FOG_DENSITY = 1f;
     private Vector3f lightDir;
     private WaterFilter water;
     private TerrainQuad terrain;
@@ -45,7 +50,7 @@ public class OceanParadigm extends FBParadigm {
     // This part is to emulate tides, slightly varrying the height of the water
     private float time = 0.0f;
     final private float seaLevel = 36.5f;// 0.8f;
-    final private float sunStartY = seaLevel -7f;
+    final private float sunStartY = seaLevel - 7f;
     final private float sunEndY = 96f;
     final private float sunDisplacement = sunEndY - sunStartY;
 
@@ -71,11 +76,11 @@ public class OceanParadigm extends FBParadigm {
     public void initParadigm() {
 
         invertVol = true;
-        
-        if (flyCam !=null) {
+
+        if (flyCam != null) {
             flyCam.setMoveSpeed(20);
             flyCam.setRotationSpeed(.5f);
-    
+
         }
 
         mainScene = new Node("Main Scene");
@@ -92,16 +97,13 @@ public class OceanParadigm extends FBParadigm {
         mainScene.addLight(sunLight);
 
         ambLight = new AmbientLight();
-        ambLight.setColor(ColorRGBA.Yellow.mult(.01f));
+        ambLight.setColor(ColorRGBA.Yellow.mult(.5f));
         mainScene.addLight(ambLight);
 
-        cam.setLocation(new Vector3f(0, seaLevel+2.5f, 5));
-        // cam.setLocation(new Vector3f(-370.31592f, 120, 196.81192f));
-        // cam.setRotation(new Quaternion(0.015302252f, 0.9304095f, -0.039101653f, 0.3641086f));
+        cam.setLocation(new Vector3f(0, seaLevel + 2.5f, 5));
 
         sky = SkyFactory.createSky(assetManager, "Scenes/Beach/FullskiesSunset0068.dds", EnvMapType.CubeMap);
-        // sky = SkyFactory.createSky(assetManager, "assets/sky1.jpg", EnvMapType.SphereMap);
-        sky.rotate(0, (float)Math.PI, 0);
+        sky.rotate(0, (float) Math.PI, 0);
 
         mainScene.attachChild(sky);
         cam.setFrustumFar(4000);
@@ -135,15 +137,16 @@ public class OceanParadigm extends FBParadigm {
         water.setLightColor(ColorRGBA.Yellow.mult(.1f));
 
         // Bloom Filter
-        BloomFilter bloom = new BloomFilter();
-        bloom.setExposurePower(40); // 55
-        bloom.setBloomIntensity(3); // 1.2f
+        BloomFilter bloom = new BloomFilter(BloomFilter.GlowMode.Objects);
+        bloom.setExposurePower(5); // 55, 40 , 5
+        bloom.setBloomIntensity(1.2f); // 1.2f
+        bloom.setDownSamplingFactor(3f);
 
         lsf = new LightScatteringFilter(cam.getDirection().negate().multLocal(1000));
-        lsf.setLightDensity(1.2f);
+        lsf.setLightDensity(1.2f); // 1.2
 
         fog = new FogFilter();
-        fog.setFogColor(new ColorRGBA(0.3f, 0.3f, 0.3f, 0f));
+        fog.setFogColor(new ColorRGBA(0.5f, 0.5f, 0.5f, 0f));
         fog.setFogDistance(200);
         fog.setFogDensity(INITIAL_FOG_DENSITY);
 
@@ -165,17 +168,17 @@ public class OceanParadigm extends FBParadigm {
     }
 
     private void createSun() {
-        
+
         Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
 
-        mat.setColor("Color", ColorRGBA.Yellow);
-        mat.setColor("GlowColor", ColorRGBA.Yellow);
+        mat.setColor("Color", ColorRGBA.Yellow.mult(2f));
+        mat.setColor("GlowColor", ColorRGBA.Yellow.mult(2f));
 
         sunGeom = new Geometry();
-        
+
         sunGeom.setMaterial(mat);
 
-        Sphere sphere = new Sphere(16, 64, 10f);
+        Sphere sphere = new Sphere(256, 256, 8f);
         sunGeom.setMesh(sphere);
 
         sunGeom.setQueueBucket(Bucket.Sky);
@@ -226,6 +229,10 @@ public class OceanParadigm extends FBParadigm {
         terrain.setLocalScale(new Vector3f(4, 1, 4));
 
         terrain.setShadowMode(ShadowMode.Receive);
+
+        // a nice view from here
+        terrain.setLocalRotation(new Quaternion(0, .494f, 0, -.869f));
+
         mainScene.attachChild(terrain);
 
     }
@@ -242,14 +249,19 @@ public class OceanParadigm extends FBParadigm {
 
         water.setMaxAmplitude(invertValue);
 
-        float c1 = reward * coeff; // .01 for non test;
-        float c2 = c1 *.1f;
+        float sunFactor = (sunGeom.getWorldTranslation().y - sunStartY) / sunDisplacement;
 
-        sunGeom.move(0, c1, 0); 
+        if (sunFactor > 1) {
+            finish();
+            return;
+        }
+
+        float c1 = reward * coeff; // .01 for non test;
+        float c2 = c1 * .1f;
+
+        sunGeom.move(0, c1, 0);
         lsf.setLightPosition(sunGeom.getWorldTranslation().mult(100));
 
-        float sunFactor = (sunGeom.getWorldTranslation().y - sunStartY)/sunDisplacement;
-        
         Vector3f dir = water.getLightDirection();
         dir.addLocal(0, 0, c2);
 
@@ -257,18 +269,87 @@ public class OceanParadigm extends FBParadigm {
         sunLight.setDirection(dir);
 
         fog.setFogDensity(INITIAL_FOG_DENSITY - sunFactor);
-        ambLight.setColor(ColorRGBA.White.mult(sunFactor));
 
-        if (rotate) terrain.rotate(0, .01f, 0);
+        ambLight.setColor(ColorRGBA.Yellow.mult(.4f + sunFactor));
 
+        if (rotate)
+            terrain.rotate(0, .01f, 0);
 
+    }
+
+    void finish() {
+
+        stopParadigm();
+
+        Torus torus = new Torus(128, 128, .3f, 40f);
+        Geometry rainbow = new Geometry("rainbow", torus);
+        Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
+
+        float t = 1f;
+
+        mat.setColor("Color", new ColorRGBA(1, 0, 0, t));
+        mat.setColor("GlowColor", ColorRGBA.Red);
+
+        mat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
+        mat.getAdditionalRenderState().setFaceCullMode(FaceCullMode.Front);
+
+        rainbow.setMaterial(mat);
+        rainbow.setQueueBucket(Bucket.Sky);
+
+        rainbow.move(0, seaLevel - 10, -100);
+
+        rootNode.attachChild(rainbow);
+
+        float s = .985f;
+        Geometry rb = null;
+        ColorRGBA color = null;
+
+        rb = rainbow.clone();
+
+        color = new ColorRGBA(1f, .27f, 0, t);
+        rb.getMaterial().setColor("Color", color);
+        rb.getMaterial().setColor("GlowColor", color);
+        rb.scale(s);
+        rootNode.attachChild(rb);
+
+        rb = rb.clone();
+        color = new ColorRGBA(1f, 1f, 0, t);
+        rb.getMaterial().setColor("Color", color);
+        rb.getMaterial().setColor("GlowColor", color);
+        rb.scale(s);
+        rootNode.attachChild(rb);
+
+        rb = rb.clone();
+        color = new ColorRGBA(0f, 0f, 1f, t);
+        rb.getMaterial().setColor("Color", color);
+        rb.getMaterial().setColor("GlowColor", color);
+        rb.scale(s);
+        rootNode.attachChild(rb);
+
+        rb = rb.clone();
+        color = new ColorRGBA(.3f, 0f, .5f, t);
+
+        rb.getMaterial().setColor("Color", color);
+        rb.getMaterial().setColor("GlowColor", color);
+        rb.scale(s);
+        rootNode.attachChild(rb);
+
+        rb = rb.clone();
+        color = new ColorRGBA(.5f, 0f, 1f, t);
+
+        rb.getMaterial().setColor("Color", color);
+        rb.getMaterial().setColor("GlowColor", color);
+        rb.scale(s);
+        rootNode.attachChild(rb);
+
+        super.finish();
     }
 
     @Override
     void startParadigm() {
 
         if (testMode) {
-            coeff = .1f;
+            coeff = 1f;
         } else {
             coeff = .01f;
         }
@@ -285,12 +366,10 @@ public class OceanParadigm extends FBParadigm {
         water.setSpeed(0f);
         water.setMaxAmplitude(0f); // 3f
 
-        System.out.println(terrain.getLocalRotation());
-
     }
 
     @Override
     void resetParadigm() {
-        rotate = !rotate;
+        // TODO: implement
     }
 }

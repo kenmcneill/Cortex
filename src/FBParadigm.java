@@ -125,8 +125,6 @@ public abstract class FBParadigm extends SimpleApplication {
   public void simpleInitApp() {
 
     assetManager.registerLocator(".", FileLocator.class);
-    // setBackground("assets/FunkyBackground.png");
-    // setBackground("assets/ground2sky.jpg", "initial");
 
     initParadigm();
     initHUDText();
@@ -147,12 +145,10 @@ public abstract class FBParadigm extends SimpleApplication {
         testMode = !testMode;
       } else if (name.equals("Reset")) {
 
-        resetParadigm();
-
         if (started) {
           return;
         }
-        // reset();
+        reset();
       }
     }
   };
@@ -267,7 +263,7 @@ public abstract class FBParadigm extends SimpleApplication {
     sync = false;
   }
 
-  private void finish() {
+  void finish() {
     
     hudText.setText("Congratulations, you have completed the feedback session!");
     rootNode.attachChild(hudText);
